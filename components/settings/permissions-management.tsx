@@ -78,6 +78,7 @@ export function PermissionsManagement() {
   const [availablePermissions, setAvailablePermissions] = useState([])
   const [selectedPermissionId, setSelectedPermissionId] = useState("")
   const [isAddGroupPermissionDialogOpen, setIsAddGroupPermissionDialogOpen] = useState(false)
+  const [permissionSearchQuery, setPermissionSearchQuery] = useState("")
 
   // Cargar permisos al montar el componente
   useEffect(() => {
@@ -87,6 +88,61 @@ export function PermissionsManagement() {
       fetchGroups()
     }
   }, [activeTab])
+
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      setLoading(true)
+      try {
+        const { data, error } = await supabase.from("permissions").select("*").order("resource", { ascending: true })
+
+        if (error) throw error
+
+        // Check if "topic:manage" permission exists
+        const topicManagePermission = data.find(
+          (permission) => permission.resource === "topics" && permission.action === "manage",
+        )
+
+        // If it doesn't exist, create it
+        if (!topicManagePermission) {
+          const { error: insertError } = await supabase.from("permissions").insert([
+            {
+              name: "Gestionar Temas",
+              resource: "topics",
+              action: "manage",
+              description: "Permite crear, editar y eliminar temas",
+            },
+          ])
+
+          if (insertError) {
+            console.error("Error creating 'topic:manage' permission:", insertError)
+            toast({
+              variant: "destructive",
+              title: "Error al crear permiso",
+              description: "No se pudo crear el permiso 'topic:manage'",
+            })
+          } else {
+            toast({
+              title: "Permiso creado",
+              description: "El permiso 'topic:manage' ha sido creado exitosamente",
+            })
+          }
+        }
+
+        setPermissions(data)
+      } catch (error) {
+        console.error("Error fetching permissions:", error)
+        toast({
+          variant: "destructive",
+          title: "Error al cargar permisos",
+          description: error.message || "No se pudieron cargar los permisos",
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPermissions()
+  }, [supabase, toast])
 
   // Función para obtener permisos
   const fetchPermissions = async () => {
@@ -174,9 +230,13 @@ export function PermissionsManagement() {
 
       if (permissionsError) throw permissionsError
 
+      console.log("All Permissions:", allPermissions) // Add this line to log all permissions
+
       // Filtrar permisos que ya están asignados al grupo
       const assignedPermissionIds = formattedData.map((item) => item.permission_id)
       const available = allPermissions.filter((permission) => !assignedPermissionIds.includes(permission.id))
+
+      console.log("Available Permissions:", available) // Add this line to log available permissions
 
       setAvailablePermissions(available)
     } catch (error) {
@@ -198,6 +258,21 @@ export function PermissionsManagement() {
       permission.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       permission.resource.toLowerCase().includes(searchQuery.toLowerCase()) ||
       permission.action.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  // Filtrar permisos disponibles según la búsqueda
+  const filteredAvailablePermissions = availablePermissions.filter(
+    (permission) =>
+      permission.name.toLowerCase().includes(permissionSearchQuery.toLowerCase()) ||
+      permission.description?.toLowerCase().includes(permissionSearchQuery.toLowerCase()) ||
+      permission.resource.toLowerCase().includes(permissionSearchQuery.toLowerCase()) ||
+      permission.action.toLowerCase().includes(permissionSearchQuery.toLowerCase()) ||
+      RESOURCES.find((r) => r.value === permission.resource)
+        ?.label.toLowerCase()
+        .includes(permissionSearchQuery.toLowerCase()) ||
+      ACTIONS.find((a) => a.value === permission.action)
+        ?.label.toLowerCase()
+        .includes(permissionSearchQuery.toLowerCase()),
   )
 
   // Manejar cambios en el formulario
@@ -421,6 +496,7 @@ export function PermissionsManagement() {
       setIsAddGroupPermissionDialogOpen(false)
       fetchGroupPermissions(selectedGroup.id)
       setSelectedPermissionId("")
+      setPermissionSearchQuery("")
     } catch (error) {
       console.error("Error assigning permission:", error)
       toast({
@@ -716,14 +792,31 @@ export function PermissionsManagement() {
                             </DialogDescription>
                           </DialogHeader>
                           <div className="py-4">
+                            <Label htmlFor="permission-search" className="mb-2 block">
+                              Buscar permiso
+                            </Label>
+                            <div className="relative">
+                              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                              <Input
+                                id="permission-search"
+                                type="search"
+                                placeholder="Buscar por nombre, recurso o acción..."
+                                className="pl-8 mb-2"
+                                value={permissionSearchQuery}
+                                onChange={(e) => setPermissionSearchQuery(e.target.value)}
+                              />
+                            </div>
                             <Select value={selectedPermissionId} onValueChange={setSelectedPermissionId}>
                               <SelectTrigger>
                                 <SelectValue placeholder="Seleccione un permiso" />
                               </SelectTrigger>
                               <SelectContent>
-                                {availablePermissions.map((permission) => (
+                                {filteredAvailablePermissions.map((permission) => (
                                   <SelectItem key={permission.id} value={permission.id}>
-                                    {permission.name} ({permission.resource} - {permission.action})
+                                    {permission.name} (
+                                    {RESOURCES.find((r) => r.value === permission.resource)?.label ||
+                                      permission.resource}{" "}
+                                    - {ACTIONS.find((a) => a.value === permission.action)?.label || permission.action})
                                   </SelectItem>
                                 ))}
                               </SelectContent>
