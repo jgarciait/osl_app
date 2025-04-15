@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
 import { HexColorPicker } from "react-colorful"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function EtiquetasForm() {
   const router = useRouter()
@@ -25,6 +26,9 @@ export function EtiquetasForm() {
     descripcion: "",
     color: "#1a365d", // Color predeterminado que coincide con el tema
   })
+
+  const { hasPermission } = useGroupPermissions()
+  const canManageEtiquetas = hasPermission("tags", "manage")
 
   useEffect(() => {
     // Escuchar eventos de edición
@@ -116,6 +120,10 @@ export function EtiquetasForm() {
       descripcion: "",
       color: "#1a365d",
     })
+  }
+
+  if (!canManageEtiquetas) {
+    return null
   }
 
   return (

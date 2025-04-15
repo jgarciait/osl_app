@@ -66,13 +66,13 @@
     "react-select": "latest",
     "@supabase/ssr": "latest",
     "@tanstack/react-table": "latest",
-    "react-colorful": "latest",
     "@tiptap/react": "latest",
     "@tiptap/starter-kit": "latest",
     "@tiptap/extension-placeholder": "latest",
     "jspdf-autotable": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
-    "@radix-ui/react-icons": "latest"
+    "@radix-ui/react-icons": "latest",
+    "react-colorful": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",
