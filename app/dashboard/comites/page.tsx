@@ -3,7 +3,7 @@ import { ComitesTable } from "@/components/comites-table"
 import { ComiteForm } from "@/components/comite-form"
 
 export default async function ComitesPage() {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   // Fetch committees
   const { data: comites, error } = await supabase
