@@ -27,7 +27,7 @@ export function TemasTable({ temas = [] }) {
   const { toast } = useToast()
   const supabase = createClientClient()
   const { hasPermission } = useGroupPermissions()
-  const canManageTemas = hasPermission("topic", "manage")
+  const canManageTemas = hasPermission("topics", "manage")
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [temaToDelete, setTemaToDelete] = useState(null)
@@ -141,7 +141,7 @@ export function TemasTable({ temas = [] }) {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Abreviatura</TableHead>
-                {canManageTemas && <TableHead className="w-[80px]"></TableHead>}
+                {canManageTemas ? <TableHead className="w-[80px]"></TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -156,7 +156,7 @@ export function TemasTable({ temas = [] }) {
                   <TableRow key={tema.id}>
                     <TableCell className="font-medium">{tema.nombre}</TableCell>
                     <TableCell>{tema.abreviatura || "-"}</TableCell>
-                    {canManageTemas && (
+                    {canManageTemas ? (
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -177,7 +177,7 @@ export function TemasTable({ temas = [] }) {
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
-                    )}
+                    ) : null}
                   </TableRow>
                 ))
               )}

@@ -3,9 +3,6 @@
 import { useState, useEffect, useRef } from "react"
 import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
-import { Button } from "@/components/ui/button"
-import { Plus } from "lucide-react"
-import Link from "next/link"
 import { useToast } from "@/components/ui/use-toast"
 
 export default function ExpresionesPage() {
@@ -284,8 +281,7 @@ export default function ExpresionesPage() {
 
   return (
     <div className="container mx-auto py-6">
-      <div className="flex justify-between items-center mb-6">
-      </div>
+      <div className="flex justify-between items-center mb-6"></div>
       <ExpresionesTable expresiones={expresiones} years={years} />
     </div>
   )
