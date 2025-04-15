@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function ComiteForm() {
   const router = useRouter()
@@ -24,6 +25,9 @@ export function ComiteForm() {
     nombre: "",
     tipo: "senado",
   })
+
+  const { hasPermission } = useGroupPermissions()
+  const canManageComites = hasPermission("committees", "manage")
 
   useEffect(() => {
     // Listen for edit events
@@ -110,6 +114,10 @@ export function ComiteForm() {
       nombre: "",
       tipo: "senado",
     })
+  }
+
+  if (!canManageComites) {
+    return null
   }
 
   return (

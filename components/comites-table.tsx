@@ -20,11 +20,14 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function ComitesTable({ comites = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
+  const { hasPermission } = useGroupPermissions()
+  const canManageComites = hasPermission("committees", "manage")
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [comiteToDelete, setComiteToDelete] = useState(null)
@@ -139,7 +142,7 @@ export function ComitesTable({ comites = [] }) {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Tipo</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                {canManageComites && <TableHead className="w-[80px]"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -154,26 +157,28 @@ export function ComitesTable({ comites = [] }) {
                   <TableRow key={comite.id}>
                     <TableCell className="font-medium">{comite.nombre}</TableCell>
                     <TableCell>{comite.tipo === "senado" ? "Senado" : "Cámara"}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Acciones</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(comite)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setComiteToDelete(comite)} className="text-red-600">
-                            <Trash className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    {canManageComites && (
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Acciones</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(comite)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setComiteToDelete(comite)} className="text-red-600">
+                              <Trash className="mr-2 h-4 w-4" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

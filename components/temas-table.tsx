@@ -20,11 +20,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function TemasTable({ temas = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
+  const { hasPermission } = useGroupPermissions()
+  const canManageTemas = hasPermission("topic", "manage")
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [temaToDelete, setTemaToDelete] = useState(null)
@@ -138,7 +141,7 @@ export function TemasTable({ temas = [] }) {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Abreviatura</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
+                {canManageTemas && <TableHead className="w-[80px]"></TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -153,26 +156,28 @@ export function TemasTable({ temas = [] }) {
                   <TableRow key={tema.id}>
                     <TableCell className="font-medium">{tema.nombre}</TableCell>
                     <TableCell>{tema.abreviatura || "-"}</TableCell>
-                    <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Acciones</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(tema)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setTemaToDelete(tema)} className="text-red-600">
-                            <Trash className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
+                    {canManageTemas && (
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Acciones</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(tema)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setTemaToDelete(tema)} className="text-red-600">
+                              <Trash className="mr-2 h-4 w-4" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    )}
                   </TableRow>
                 ))
               )}

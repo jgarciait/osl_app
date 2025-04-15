@@ -16,7 +16,8 @@ import { useToast } from "@/components/ui/use-toast"
 import { ClasificacionForm } from "@/components/clasificacion-form"
 import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { createClientClient } from "@/lib/supabase-client"
-import { Pencil, Trash2, Plus } from "lucide-react"
+import { Pencil, Trash2, Plus, Loader2 } from "lucide-react"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 interface Clasificacion {
   id: string
@@ -34,6 +35,8 @@ export function ClasificacionesTable() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const { toast } = useToast()
   const supabase = createClientClient()
+  const { hasPermission } = useGroupPermissions()
+  const canManageClasificaciones = hasPermission("classifications", "manage")
 
   // Cargar clasificaciones
   const fetchClasificaciones = async () => {
@@ -93,30 +96,35 @@ export function ClasificacionesTable() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Clasificaciones</CardTitle>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="mr-2 h-4 w-4" />
-              Agregar
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Agregar Clasificación</DialogTitle>
-              <DialogDescription>Crea una nueva clasificación para las expresiones.</DialogDescription>
-            </DialogHeader>
-            <ClasificacionForm
-              onSuccess={() => {
-                setIsAddDialogOpen(false)
-                fetchClasificaciones()
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        {canManageClasificaciones && (
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Agregar
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Agregar Clasificación</DialogTitle>
+                <DialogDescription>Crea una nueva clasificación para las expresiones.</DialogDescription>
+              </DialogHeader>
+              <ClasificacionForm
+                onSuccess={() => {
+                  setIsAddDialogOpen(false)
+                  fetchClasificaciones()
+                }}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex justify-center p-4">Cargando clasificaciones...</div>
+          <div className="flex justify-center p-4">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span className="ml-2">Cargando clasificaciones...</span>
+          </div>
         ) : clasificaciones.length === 0 ? (
           <div className="text-center p-4 text-gray-500">No hay clasificaciones disponibles</div>
         ) : (
@@ -125,7 +133,7 @@ export function ClasificacionesTable() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Descripción</TableHead>
-                <TableHead className="w-[100px]">Acciones</TableHead>
+                {canManageClasificaciones && <TableHead className="w-[100px]">Acciones</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -133,30 +141,32 @@ export function ClasificacionesTable() {
                 <TableRow key={clasificacion.id}>
                   <TableCell className="font-medium">{clasificacion.nombre}</TableCell>
                   <TableCell>{clasificacion.descripcion || "-"}</TableCell>
-                  <TableCell>
-                    <div className="flex space-x-2">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedClasificacion(clasificacion)
-                          setIsEditDialogOpen(true)
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => {
-                          setSelectedClasificacion(clasificacion)
-                          setIsDeleteDialogOpen(true)
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
+                  {canManageClasificaciones && (
+                    <TableCell>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedClasificacion(clasificacion)
+                            setIsEditDialogOpen(true)
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedClasificacion(clasificacion)
+                            setIsDeleteDialogOpen(true)
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
             </TableBody>

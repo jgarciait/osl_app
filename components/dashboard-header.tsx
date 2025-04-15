@@ -5,13 +5,19 @@ import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, PanelLeft } from "lucide-react"
 import { useSidebarContext } from "@/components/app-sidebar"
+// Añadir la importación del hook useGroupPermissions
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function DashboardHeader() {
   const pathname = usePathname()
   const { toggleSidebar } = useSidebarContext()
 
-  // Determinar si mostrar el botón de nueva expresión
-  const showNewButton = pathname === "/dashboard/expresiones"
+  // Añadir verificación de permisos
+  const { hasPermission } = useGroupPermissions()
+  const canManageExpressions = hasPermission("expressions", "manage")
+
+  // Determinar si mostrar el botón de nueva expresión (ahora también verifica permisos)
+  const showNewButton = pathname === "/dashboard/expresiones" && canManageExpressions
 
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">

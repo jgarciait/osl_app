@@ -1,6 +1,5 @@
 "use client"
 
-import { CardFooter } from "@/components/ui/card"
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/use-toast"
@@ -8,7 +7,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 
 export function TemaForm() {
@@ -20,7 +19,7 @@ export function TemaForm() {
   const [formData, setFormData] = useState({
     id: null,
     nombre: "",
-    abreviatura: "", // Cambiado de descripcion a abreviatura
+    abreviatura: "",
   })
 
   useEffect(() => {
@@ -30,7 +29,7 @@ export function TemaForm() {
       setFormData({
         id: tema.id,
         nombre: tema.nombre,
-        abreviatura: tema.abreviatura || "", // Cambiado de descripcion a abreviatura
+        abreviatura: tema.abreviatura || "",
       })
     }
 
@@ -57,7 +56,7 @@ export function TemaForm() {
           .from("temas")
           .update({
             nombre: formData.nombre,
-            abreviatura: formData.abreviatura, // Cambiado de descripcion a abreviatura
+            abreviatura: formData.abreviatura,
           })
           .eq("id", formData.id)
 
@@ -71,7 +70,7 @@ export function TemaForm() {
         // Create new tema
         const { error } = await supabase.from("temas").insert({
           nombre: formData.nombre,
-          abreviatura: formData.abreviatura, // Cambiado de descripcion a abreviatura
+          abreviatura: formData.abreviatura,
         })
 
         if (error) throw error
@@ -86,7 +85,7 @@ export function TemaForm() {
       setFormData({
         id: null,
         nombre: "",
-        abreviatura: "", // Cambiado de descripcion a abreviatura
+        abreviatura: "",
       })
 
       router.refresh()
@@ -106,7 +105,7 @@ export function TemaForm() {
     setFormData({
       id: null,
       nombre: "",
-      abreviatura: "", // Cambiado de descripcion a abreviatura
+      abreviatura: "",
     })
   }
 
@@ -114,7 +113,7 @@ export function TemaForm() {
     <Card>
       <CardHeader>
         <CardDescription>
-          {formData.id ? "Actualice la información del tema" : "Complete el formulario para crear un nuevo tema"}
+          {formData.id ? "Actualice la información del tema" : "Complete el formulario para añadir un tema."}
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -126,13 +125,7 @@ export function TemaForm() {
 
           <div className="space-y-2">
             <Label htmlFor="abreviatura">Abreviatura</Label>
-            <Input
-              id="abreviatura"
-              name="abreviatura"
-              value={formData.abreviatura}
-              onChange={handleInputChange}
-              required
-            />
+            <Input id="abreviatura" name="abreviatura" value={formData.abreviatura} onChange={handleInputChange} />
           </div>
         </CardContent>
         <CardFooter className="flex justify-between">
