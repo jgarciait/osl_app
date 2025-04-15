@@ -21,14 +21,12 @@ export default async function PerfilPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Perfil</h1>
-        <p className="text-muted-foreground">Administre su información de perfil</p>
+    <>
+      <div className="w-full py-6 px-4">
+        <div className="space-y-6">
+          <ProfileForm profile={profile} user={session.user} />
+        </div>
       </div>
-
-      <ProfileForm profile={profile} user={session.user} />
-    </div>
+    </>
   )
 }
-

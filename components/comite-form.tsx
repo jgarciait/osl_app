@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 
@@ -115,9 +115,10 @@ export function ComiteForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{formData.id ? "Editar Comité" : "Nuevo Comité"}</CardTitle>
         <CardDescription>
-          {formData.id ? "Actualice la información del comité" : "Complete el formulario para crear un nuevo comité"}
+          {formData.id
+            ? "Actualice la información del comité"
+            : "Complete el formulario para añadir comisiónes y legisladores."}
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -171,4 +172,3 @@ export function ComiteForm() {
     </Card>
   )
 }
-

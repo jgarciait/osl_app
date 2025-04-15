@@ -3,7 +3,6 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ThemeProvider } from "@/components/theme-provider"
-import { SidebarProvider } from "@/components/ui/sidebar"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -13,25 +12,19 @@ export const metadata = {
     generator: 'v0.dev'
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          <SidebarProvider>
-            {children}
-            <Toaster />
-          </SidebarProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          {/* No envolver todas las rutas con GroupPermissionsProvider */}
+          {children}
+          <Toaster />
         </ThemeProvider>
       </body>
     </html>
   )
 }
-
 
 
 import './globals.css'

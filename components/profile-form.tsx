@@ -32,16 +32,40 @@ export function ProfileForm({ profile, user }) {
     setIsSubmitting(true)
 
     try {
-      const { error } = await supabase.from("profiles").upsert({
-        id: user.id,
-        nombre: formData.nombre,
-        apellido: formData.apellido,
-        telefono: formData.telefono,
-        email: user.email,
-        updated_at: new Date(),
-      })
+      // Verificar si el perfil ya existe
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single()
 
-      if (error) throw error
+      let result
+
+      if (existingProfile) {
+        // Si el perfil existe, usar update
+        result = await supabase
+          .from("profiles")
+          .update({
+            nombre: formData.nombre,
+            apellido: formData.apellido,
+            telefono: formData.telefono,
+            email: user.email,
+            updated_at: new Date(),
+          })
+          .eq("id", user.id)
+      } else {
+        // Si el perfil no existe, usar insert
+        result = await supabase.from("profiles").insert({
+          id: user.id,
+          nombre: formData.nombre,
+          apellido: formData.apellido,
+          telefono: formData.telefono,
+          email: user.email,
+          updated_at: new Date(),
+        })
+      }
+
+      if (result.error) throw result.error
 
       toast({
         title: "Perfil actualizado",
@@ -62,7 +86,7 @@ export function ProfileForm({ profile, user }) {
   }
 
   return (
-    <Card>
+    <Card className="w-[400px] mx-auto">
       <CardHeader>
         <CardTitle>Información de Perfil</CardTitle>
         <CardDescription>Actualice su información personal</CardDescription>
@@ -105,4 +129,3 @@ export function ProfileForm({ profile, user }) {
     </Card>
   )
 }
-

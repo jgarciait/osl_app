@@ -1,39 +1,27 @@
 import type React from "react"
-import { redirect } from "next/navigation"
-import { createServerClient } from "@/lib/supabase-server"
-import { AppSidebar } from "@/components/app-sidebar"
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Menu } from "lucide-react"
+import { AppSidebar, SidebarProvider } from "@/components/app-sidebar"
+import { ProtectedRoute } from "@/components/protected-route"
+import { GroupPermissionsProvider } from "@/hooks/use-group-permissions"
+import { DashboardHeader } from "@/components/dashboard-header"
 
-export default async function DashboardLayout({
+export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = createServerClient()
-
-  const {
-    data: { session },
-  } = await supabase.auth.getSession()
-
-  if (!session) {
-    redirect("/login")
-  }
-
   return (
-    <div className="flex min-h-screen">
-      <AppSidebar />
-      <SidebarInset>
-        <div className="flex-1">
-          <div className="border-b p-4">
-            <SidebarTrigger>
-              <Menu className="h-5 w-5" />
-            </SidebarTrigger>
+    <GroupPermissionsProvider>
+      <SidebarProvider>
+        <ProtectedRoute>
+          <div className="flex h-screen overflow-hidden">
+            <AppSidebar />
+            <div className="flex-1 overflow-y-auto">
+              <DashboardHeader />
+              <main className="p-4 md:p-6">{children}</main>
+            </div>
           </div>
-          <div className="p-6">{children}</div>
-        </div>
-      </SidebarInset>
-    </div>
+        </ProtectedRoute>
+      </SidebarProvider>
+    </GroupPermissionsProvider>
   )
 }
-

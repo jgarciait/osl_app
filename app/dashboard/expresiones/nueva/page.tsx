@@ -7,27 +7,55 @@ export default async function NuevaExpresionPage() {
   // Fetch committees for the form
   const { data: comites } = await supabase.from("comites").select("*").order("nombre")
 
+  // Fetch temas for the form
+  const { data: temas } = await supabase.from("temas").select("*").order("nombre")
+
+  // Obtener todas las clasificaciones
+  const { data: clasificaciones, error: clasificacionesError } = await supabase
+    .from("clasificaciones")
+    .select("*")
+    .order("nombre", { ascending: true })
+
+  if (clasificacionesError) {
+    console.error("Error fetching clasificaciones:", clasificacionesError)
+  }
+
   // Get the current year and next sequence number
   const currentYear = new Date().getFullYear()
 
-  const { data: lastExpresion } = await supabase
-    .from("expresiones")
-    .select("sequence")
-    .eq("ano", currentYear)
-    .order("sequence", { ascending: false })
-    .limit(1)
+  // Primero intentamos obtener la configuración de secuencia
+  const { data: seqData } = await supabase.from("secuencia").select("valor").eq("id", "next_sequence").single()
 
-  const nextSequence = lastExpresion && lastExpresion.length > 0 ? lastExpresion[0].sequence + 1 : 1
+  let nextSequence = 1
+
+  if (seqData) {
+    // Si hay configuración, la usamos
+    nextSequence = Number.parseInt(seqData.valor, 10)
+  } else {
+    // Si no hay configuración, obtenemos la última expresión
+    const { data: lastExpresion } = await supabase
+      .from("expresiones")
+      .select("sequence")
+      .order("sequence", { ascending: false })
+      .limit(1)
+
+    // Si hay expresiones, usamos la última secuencia + 1
+    if (lastExpresion && lastExpresion.length > 0) {
+      nextSequence = lastExpresion[0].sequence + 1
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Nueva Expresión</h1>
-        <p className="text-muted-foreground">Complete el formulario para registrar una nueva expresión ciudadana</p>
+    <>
+      <div className="w-full py-6 px-4">
+        <ExpresionForm
+          comites={comites || []}
+          temas={temas || []}
+          clasificaciones={clasificaciones || []}
+          currentYear={currentYear}
+          nextSequence={nextSequence}
+        />
       </div>
-
-      <ExpresionForm comites={comites || []} currentYear={currentYear} nextSequence={nextSequence} />
-    </div>
+    </>
   )
 }
-

@@ -28,18 +28,48 @@ export default async function EditarExpresionPage({
   // Fetch committees for the form
   const { data: comites } = await supabase.from("comites").select("*").order("nombre")
 
+  // Fetch temas for the form
+  const { data: temas } = await supabase.from("temas").select("*").order("nombre")
+
+  // Obtener todas las clasificaciones
+  const { data: clasificaciones, error: clasificacionesError } = await supabase
+    .from("clasificaciones")
+    .select("*")
+    .order("nombre", { ascending: true })
+
+  if (clasificacionesError) {
+    console.error("Error fetching clasificaciones:", clasificacionesError)
+  }
+
+  // Obtener las clasificaciones asignadas a esta expresión
+  const { data: expresionClasificaciones, error: expresionClasificacionesError } = await supabase
+    .from("expresion_clasificaciones")
+    .select("clasificacion_id")
+    .eq("expresion_id", params.id)
+
+  if (expresionClasificacionesError) {
+    console.error("Error fetching expresion clasificaciones:", expresionClasificacionesError)
+  }
+
+  // Extraer los IDs de clasificaciones
+  const selectedClasificacionIds = expresionClasificaciones?.map((item) => item.clasificacion_id) || []
+
   // Extract committee IDs
   const comiteIds = expresion.expresion_comites.map((ec) => ec.comite_id)
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Editar Expresión</h1>
-        <p className="text-muted-foreground">Actualice la información de la expresión ciudadana</p>
+    <>
+      <div className="w-full py-6 px-4">
+        <ExpresionForm
+          expresion={expresion}
+          comites={comites || []}
+          temas={temas || []}
+          clasificaciones={clasificaciones || []}
+          selectedComiteIds={comiteIds}
+          selectedClasificacionIds={selectedClasificacionIds}
+          isEditing={true}
+        />
       </div>
-
-      <ExpresionForm expresion={expresion} comites={comites || []} selectedComiteIds={comiteIds} isEditing={true} />
-    </div>
+    </>
   )
 }
-

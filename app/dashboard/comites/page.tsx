@@ -17,17 +17,15 @@ export default async function ComitesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Comisiones</h1>
-        <p className="text-muted-foreground">Administre los comités del Senado y la Cámara</p>
+    <>
+      <div className="w-full py-6 px-4">
+        <div className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2">
+            <ComiteForm />
+            <ComitesTable comites={comites || []} />
+          </div>
+        </div>
       </div>
-
-      <div className="grid gap-6 md:grid-cols-2">
-        <ComiteForm />
-        <ComitesTable comites={comites || []} />
-      </div>
-    </div>
+    </>
   )
 }
-

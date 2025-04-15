@@ -2,25 +2,32 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { createClientClient } from "@/lib/supabase-client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { createClientClient } from "@/lib/supabase-client"
 
-export function LoginForm() {
-  const [isLoading, setIsLoading] = useState(false)
+export function LoginForm({ isLoggedIn = false }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const { toast } = useToast()
   const supabase = createClientClient()
 
-  async function onSubmit(e: React.FormEvent) {
+  // Si el usuario ya está autenticado, redirigir al dashboard
+  useEffect(() => {
+    if (isLoggedIn) {
+      router.push("/dashboard")
+    }
+  }, [isLoggedIn, router])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
     try {
       const { error } = await supabase.auth.signInWithPassword({
@@ -29,22 +36,14 @@ export function LoginForm() {
       })
 
       if (error) {
-        throw error
+        setError(error.message)
+        return
       }
 
-      toast({
-        title: "Inicio de sesión exitoso",
-        description: "Bienvenido al sistema de expresiones legislativas",
-      })
-
-      router.push("/dashboard/expresiones")
-      router.refresh()
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error de inicio de sesión",
-        description: error.message || "Ocurrió un error al iniciar sesión",
-      })
+      router.push("/dashboard")
+    } catch (err) {
+      setError("Ocurrió un error al iniciar sesión. Por favor, inténtelo de nuevo.")
+      console.error(err)
     } finally {
       setIsLoading(false)
     }
@@ -52,7 +51,7 @@ export function LoginForm() {
 
   return (
     <div className="grid gap-6">
-      <form onSubmit={onSubmit}>
+      <form onSubmit={handleSubmit}>
         <div className="grid gap-4">
           <div className="grid gap-2">
             <Label htmlFor="email">Correo electrónico</Label>
@@ -73,6 +72,7 @@ export function LoginForm() {
             <Label htmlFor="password">Contraseña</Label>
             <Input
               id="password"
+              placeholder="********"
               type="password"
               autoComplete="current-password"
               disabled={isLoading}
@@ -81,12 +81,12 @@ export function LoginForm() {
               required
             />
           </div>
-          <Button type="submit" disabled={isLoading} className="bg-[#1a365d] hover:bg-[#15294d]">
+          <Button disabled={isLoading} type="submit">
             {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
           </Button>
         </div>
       </form>
+      {error && <p className="text-sm text-red-500">{error}</p>}
     </div>
   )
 }
-

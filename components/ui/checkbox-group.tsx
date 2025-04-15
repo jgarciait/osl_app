@@ -71,4 +71,3 @@ const CheckboxItem = React.forwardRef<
 CheckboxItem.displayName = "CheckboxItem"
 
 export { CheckboxGroup, CheckboxItem }
-
