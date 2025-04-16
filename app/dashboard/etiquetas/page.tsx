@@ -3,7 +3,7 @@ import { EtiquetasTable } from "@/components/etiquetas-table"
 import { EtiquetasForm } from "@/components/etiquetas-form"
 
 export default async function EtiquetasPage() {
-  const supabase = createServerClient()
+  const supabase = await createServerClient()
 
   // Obtener etiquetas
   const { data: etiquetas, error } = await supabase.from("etiquetas").select("*").order("nombre", { ascending: true })
@@ -18,7 +18,7 @@ export default async function EtiquetasPage() {
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <EtiquetasForm />
-            <EtiquetasTable etiquetas={etiquetas || []} />
+            <EtiquetasTable etiquetas={Array.isArray(etiquetas) ? etiquetas : []} />
           </div>
         </div>
       </div>
