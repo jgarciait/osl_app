@@ -1,13 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { Edit, MoreHorizontal, Trash } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Edit, MoreHorizontal, Trash, Search, ChevronLeft, ChevronRight } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,21 +19,36 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-interface EtiquetasTableProps {
-  etiquetas: any[]
-}
-
-export function EtiquetasTable({ etiquetas }: EtiquetasTableProps) {
+export function EtiquetasTable({ etiquetas = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
-  const { hasPermission } = useGroupPermissions()
-  const canManageEtiquetas = hasPermission("etiquetas", "manage")
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [etiquetaToDelete, setEtiquetaToDelete] = useState(null)
+  const [searchValue, setSearchValue] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(5)
+
+  // Filtrar etiquetas basadas en la búsqueda
+  const filteredEtiquetas = etiquetas.filter(
+    (etiqueta) =>
+      etiqueta.nombre.toLowerCase().includes(searchValue.toLowerCase()) ||
+      (etiqueta.descripcion && etiqueta.descripcion.toLowerCase().includes(searchValue.toLowerCase())),
+  )
+
+  // Calcular el número total de páginas
+  const totalPages = Math.ceil(filteredEtiquetas.length / pageSize)
+
+  // Obtener las etiquetas para la página actual
+  const paginatedEtiquetas = filteredEtiquetas.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  // Resetear a la primera página cuando cambia la búsqueda o el tamaño de página
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchValue, pageSize])
 
   const handleEdit = (etiqueta) => {
     // Dispatch an event to update the form
@@ -45,7 +61,7 @@ export function EtiquetasTable({ etiquetas }: EtiquetasTableProps) {
     setIsDeleting(true)
 
     try {
-      // Check if etiqueta is used in any expression
+      // Verificar si la etiqueta está siendo utilizada
       const { data: usedEtiquetas, error: checkError } = await supabase
         .from("documento_etiquetas")
         .select("etiqueta_id")
@@ -63,7 +79,7 @@ export function EtiquetasTable({ etiquetas }: EtiquetasTableProps) {
         return
       }
 
-      // Delete etiqueta
+      // Eliminar etiqueta
       const { error } = await supabase.from("etiquetas").delete().eq("id", etiquetaToDelete.id)
 
       if (error) throw error
@@ -75,7 +91,7 @@ export function EtiquetasTable({ etiquetas }: EtiquetasTableProps) {
 
       router.refresh()
     } catch (error) {
-      console.error("Error deleting etiqueta:", error)
+      console.error("Error al eliminar etiqueta:", error)
       toast({
         variant: "destructive",
         title: "Error al eliminar",
@@ -89,28 +105,60 @@ export function EtiquetasTable({ etiquetas }: EtiquetasTableProps) {
 
   return (
     <>
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Descripción</TableHead>
-              {canManageEtiquetas && <TableHead className="w-[80px]"></TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {etiquetas.length === 0 ? (
+      <div className="space-y-4">
+        <div className="flex flex-col md:flex-row gap-4 justify-between">
+          <div className="relative w-full md:w-[300px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Buscar etiquetas..."
+              className="w-full pl-8"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+            />
+          </div>
+          <div className="w-full sm:w-auto">
+            <Select value={pageSize.toString()} onValueChange={(value) => setPageSize(Number(value))}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Entradas por página" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="5">5 por página</SelectItem>
+                <SelectItem value="10">10 por página</SelectItem>
+                <SelectItem value="25">25 por página</SelectItem>
+                <SelectItem value="50">50 por página</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center">
-                  No hay etiquetas registradas
-                </TableCell>
+                <TableHead>Color</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead className="w-[80px]"></TableHead>
               </TableRow>
-            ) : (
-              etiquetas.map((etiqueta) => (
-                <TableRow key={etiqueta.id}>
-                  <TableCell className="font-medium">{etiqueta.nombre}</TableCell>
-                  <TableCell>{etiqueta.descripcion || "-"}</TableCell>
-                  {canManageEtiquetas && (
+            </TableHeader>
+            <TableBody>
+              {filteredEtiquetas.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="h-24 text-center">
+                    No hay etiquetas registradas
+                  </TableCell>
+                </TableRow>
+              ) : (
+                paginatedEtiquetas.map((etiqueta) => (
+                  <TableRow key={etiqueta.id}>
+                    <TableCell>
+                      <div
+                        className="w-6 h-6 rounded-full"
+                        style={{ backgroundColor: etiqueta.color || "#1a365d" }}
+                        aria-hidden="true"
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">{etiqueta.nombre}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -131,12 +179,72 @@ export function EtiquetasTable({ etiquetas }: EtiquetasTableProps) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
-                  )}
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {paginatedEtiquetas.length} de {filteredEtiquetas.length} etiquetas
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Página anterior</span>
+              </Button>
+
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }).map((_, i) => {
+                  let pageToShow
+                  if (totalPages <= 5) {
+                    pageToShow = i + 1
+                  } else {
+                    let startPage = Math.max(1, currentPage - 2)
+                    const endPage = Math.min(totalPages, startPage + 4)
+                    if (endPage === totalPages) {
+                      startPage = Math.max(1, endPage - 4)
+                    }
+                    pageToShow = startPage + i
+                  }
+
+                  if (pageToShow <= totalPages) {
+                    return (
+                      <Button
+                        key={pageToShow}
+                        variant={pageToShow === currentPage ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageToShow)}
+                        className={pageToShow === currentPage ? "bg-[#1a365d] hover:bg-[#15294d]" : ""}
+                      >
+                        {pageToShow}
+                      </Button>
+                    )
+                  }
+                  return null
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+              >
+                <ChevronRight className="h-4 w-4" />
+                <span className="sr-only">Página siguiente</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <AlertDialog open={!!etiquetaToDelete} onOpenChange={() => setEtiquetaToDelete(null)}>
