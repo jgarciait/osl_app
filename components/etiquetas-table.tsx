@@ -21,16 +21,71 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
-export function EtiquetasTable({ etiquetas = [] }) {
+export function EtiquetasTable({ etiquetas: initialEtiquetas = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
 
+  const [etiquetas, setEtiquetas] = useState(initialEtiquetas)
   const [isDeleting, setIsDeleting] = useState(false)
   const [etiquetaToDelete, setEtiquetaToDelete] = useState(null)
   const [searchValue, setSearchValue] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
+
+  // Configurar suscripción en tiempo real
+  useEffect(() => {
+    // Inicializar con los datos proporcionados
+    setEtiquetas(initialEtiquetas)
+
+    // Configurar canal de suscripción para etiquetas
+    const channel = supabase
+      .channel("etiquetas-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "etiquetas",
+        },
+        (payload) => {
+          console.log("Cambio en tiempo real recibido:", payload)
+
+          // Manejar diferentes tipos de eventos
+          if (payload.eventType === "INSERT") {
+            setEtiquetas((current) => {
+              const newEtiquetas = [...current, payload.new]
+              // Ordenar por nombre
+              return newEtiquetas.sort((a, b) => a.nombre.localeCompare(b.nombre))
+            })
+            toast({
+              title: "Nueva etiqueta",
+              description: `Se ha creado la etiqueta "${payload.new.nombre}"`,
+            })
+          } else if (payload.eventType === "UPDATE") {
+            setEtiquetas((current) =>
+              current.map((etiqueta) => (etiqueta.id === payload.new.id ? payload.new : etiqueta)),
+            )
+            toast({
+              title: "Etiqueta actualizada",
+              description: `Se ha actualizado la etiqueta "${payload.new.nombre}"`,
+            })
+          } else if (payload.eventType === "DELETE") {
+            setEtiquetas((current) => current.filter((etiqueta) => etiqueta.id !== payload.old.id))
+            toast({
+              title: "Etiqueta eliminada",
+              description: `Se ha eliminado la etiqueta "${payload.old.nombre}"`,
+            })
+          }
+        },
+      )
+      .subscribe()
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [supabase, initialEtiquetas, toast])
 
   // Filtrar etiquetas basadas en la búsqueda
   const filteredEtiquetas = etiquetas.filter(
@@ -84,12 +139,8 @@ export function EtiquetasTable({ etiquetas = [] }) {
 
       if (error) throw error
 
-      toast({
-        title: "Etiqueta eliminada",
-        description: "La etiqueta ha sido eliminada exitosamente",
-      })
-
-      router.refresh()
+      // No necesitamos actualizar el estado aquí, ya que la suscripción en tiempo real lo hará
+      // No necesitamos llamar a router.refresh() ya que estamos usando tiempo real
     } catch (error) {
       console.error("Error al eliminar etiqueta:", error)
       toast({

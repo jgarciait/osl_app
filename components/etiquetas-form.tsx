@@ -68,10 +68,7 @@ export function EtiquetasForm() {
 
         if (error) throw error
 
-        toast({
-          title: "Etiqueta actualizada",
-          description: "La etiqueta ha sido actualizada exitosamente",
-        })
+        // No necesitamos mostrar toast aquí, ya que la suscripción en tiempo real lo hará
       } else {
         // Crear nueva etiqueta
         const { error } = await supabase.from("etiquetas").insert({
@@ -82,10 +79,7 @@ export function EtiquetasForm() {
 
         if (error) throw error
 
-        toast({
-          title: "Etiqueta creada",
-          description: "La etiqueta ha sido creada exitosamente",
-        })
+        // No necesitamos mostrar toast aquí, ya que la suscripción en tiempo real lo hará
       }
 
       // Resetear formulario
@@ -96,7 +90,7 @@ export function EtiquetasForm() {
         color: "#1a365d",
       })
 
-      router.refresh()
+      // No necesitamos llamar a router.refresh() ya que estamos usando tiempo real
     } catch (error) {
       console.error("Error al guardar etiqueta:", error)
       toast({
