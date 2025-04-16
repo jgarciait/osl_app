@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { createClientClient } from "@/lib/supabase-client"
 import { LoginForm } from "@/components/login-form"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -11,7 +10,8 @@ import { UserPlus } from "lucide-react"
 export default function LoginPage() {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientClient()
+  // Remove the Supabase client initialization here
+  // const supabase = createClientClient()
 
   const handleSignUp = () => {
     router.push("/signup")

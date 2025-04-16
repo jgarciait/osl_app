@@ -4,6 +4,19 @@ import { createBrowserClient } from "@supabase/ssr"
 let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
 
 export function createClientClient() {
+  // Only create a client when in the browser
+  if (typeof window === "undefined") {
+    console.warn("Attempted to create Supabase client during SSR. Returning null client.")
+    // Return a mock client during SSR to prevent errors
+    return {
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        signOut: () => Promise.resolve({ error: null }),
+      },
+    } as any
+  }
+
   // En desarrollo, siempre creamos una nueva instancia para evitar problemas con HMR
   if (process.env.NODE_ENV === "development" || !supabaseClient) {
     supabaseClient = createBrowserClient(

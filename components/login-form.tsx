@@ -15,7 +15,7 @@ export function LoginForm({ isLoggedIn = false }) {
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
-  const supabase = createClientClient()
+  const [supabase] = useState(() => createClientClient())
 
   // Si el usuario ya está autenticado, redirigir al dashboard
   useEffect(() => {
