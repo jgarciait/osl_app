@@ -1,16 +1,12 @@
-"use server"
-
 import { createServerClient as createClient } from "@supabase/ssr"
 import { cookies } from "next/headers"
-import { unstable_noStore as noStore } from "next/cache"
 
 // Creamos una función que devuelve una nueva instancia del cliente en cada llamada
 // para evitar problemas con el almacenamiento en caché entre solicitudes
-export async function createServerClient() {
-  noStore()
+export function createServerClient() {
   const cookieStore = cookies()
 
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!, {
     cookies: {
       get(name: string) {
         return cookieStore.get(name)?.value
@@ -32,5 +28,3 @@ export async function createServerClient() {
     },
   })
 }
-
-export const createClientClient = createServerClient

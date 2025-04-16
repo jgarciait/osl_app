@@ -1,18 +1,24 @@
 import { createServerClient } from "@/lib/supabase-server"
 import { ExpresionForm } from "@/components/expresion-form"
-import { safeSupabaseFetch } from "@/lib/supabase-helpers"
 
 export default async function NuevaExpresionPage() {
-  const supabase = await createServerClient()
+  const supabase = createServerClient()
 
   // Fetch committees for the form
-  const comites = await safeSupabaseFetch("comites", "*")
+  const { data: comites } = await supabase.from("comites").select("*").order("nombre")
 
   // Fetch temas for the form
-  const temas = await safeSupabaseFetch("temas", "*")
+  const { data: temas } = await supabase.from("temas").select("*").order("nombre")
 
   // Obtener todas las clasificaciones
-  const clasificaciones = await safeSupabaseFetch("clasificaciones", "*")
+  const { data: clasificaciones, error: clasificacionesError } = await supabase
+    .from("clasificaciones")
+    .select("*")
+    .order("nombre", { ascending: true })
+
+  if (clasificacionesError) {
+    console.error("Error fetching clasificaciones:", clasificacionesError)
+  }
 
   // Get the current year and next sequence number
   const currentYear = new Date().getFullYear()
@@ -43,9 +49,9 @@ export default async function NuevaExpresionPage() {
     <>
       <div className="w-full py-6 px-4">
         <ExpresionForm
-          comites={comites}
-          temas={temas}
-          clasificaciones={clasificaciones}
+          comites={comites || []}
+          temas={temas || []}
+          clasificaciones={clasificaciones || []}
           currentYear={currentYear}
           nextSequence={nextSequence}
         />

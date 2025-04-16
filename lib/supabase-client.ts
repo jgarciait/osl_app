@@ -1,29 +1,52 @@
-import { createClient } from "@supabase/supabase-js"
-import type { Database } from "@/types/supabase"
+import { createBrowserClient } from "@supabase/ssr"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Creamos una variable para almacenar la instancia del cliente
+let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
 
-export const createClientClient = () => {
-  return createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    realtime: {
-      params: {
-        eventsPerSecond: 10,
+export function createClientClient() {
+  // En desarrollo, siempre creamos una nueva instancia para evitar problemas con HMR
+  if (process.env.NODE_ENV === "development" || !supabaseClient) {
+    supabaseClient = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        realtime: {
+          params: {
+            eventsPerSecond: 10,
+          },
+        },
       },
-    },
-  })
+    )
+  }
+
+  return supabaseClient
 }
 
-// Eliminar esta función para evitar la redeclaración
-// export function createClient() {
-//   return createClientClient()
-// }
+// Función para manejar errores de autenticación
+export async function handleAuthError(error: any) {
+  console.error("Error de autenticación:", error)
 
-export const handleAuthError = async (error: any) => {
-  console.error("Auth error:", error)
-  if (error.status === 401) {
-    // Redirigir a la página de login si hay un error de autenticación
-    window.location.href = "/login"
+  // Si es un error de token no encontrado, intentamos limpiar la sesión
+  if (error?.code === "refresh_token_not_found" || error?.message?.includes("refresh token")) {
+    const supabase = createClientClient()
+
+    // Intentar cerrar sesión para limpiar tokens
+    try {
+      await supabase.auth.signOut()
+      console.log("Sesión cerrada debido a token inválido")
+    } catch (signOutError) {
+      console.error("Error al cerrar sesión:", signOutError)
+    }
+
+    // Limpiar cualquier token almacenado localmente
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("supabase.auth.token")
+    }
+
+    // Redirigir al login si estamos en el cliente
+    if (typeof window !== "undefined") {
+      window.location.href = "/login"
+    }
   }
 }
 
