@@ -1,13 +1,7 @@
 "use client"
 
 import { DialogTrigger } from "@/components/ui/dialog"
-
-import { SelectItem } from "@/components/ui/select"
-import { SelectContent } from "@/components/ui/select"
-import { SelectValue } from "@/components/ui/select"
-import { SelectTrigger } from "@/components/ui/select"
-
-import { Select } from "@/components/ui/select"
+import { MultiSelect } from "@/components/ui/multi-select"
 
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
@@ -55,11 +49,12 @@ export function InvitationsManagement() {
     email: "",
     nombre: "",
     apellido: "",
-    role: "user",
+    groups: [],
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   // Añadir esta línea al inicio del componente para obtener la sesión del usuario
   const [currentUser, setCurrentUser] = useState(null)
+  const [availableGroups, setAvailableGroups] = useState([])
 
   // Nuevos estados para el diálogo de código de invitación
   const [isCodeDialogOpen, setIsCodeDialogOpen] = useState(false)
@@ -87,6 +82,27 @@ export function InvitationsManagement() {
 
     getCurrentUser()
   }, [supabase.auth])
+
+  // Cargar grupos disponibles
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        const { data, error } = await supabase.from("groups").select("id, name, description").order("name")
+
+        if (error) throw error
+        setAvailableGroups(data || [])
+      } catch (error) {
+        console.error("Error fetching groups:", error)
+        toast({
+          variant: "destructive",
+          title: "Error al cargar grupos",
+          description: "No se pudieron cargar los grupos disponibles",
+        })
+      }
+    }
+
+    fetchGroups()
+  }, [supabase, toast])
 
   // Función para obtener invitaciones
   const fetchInvitations = async () => {
@@ -198,18 +214,22 @@ export function InvitationsManagement() {
       const invitationCode = generateInvitationCode()
 
       // Crear invitación en la base de datos
-      const { error } = await supabase.from("invitations").insert({
-        email: formData.email,
-        nombre: formData.nombre,
-        apellido: formData.apellido,
-        invitation_code: invitationCode,
-        role: formData.role,
-        created_by: currentUser.id, // Añadir el ID del usuario actual
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Expira en 7 días
-        status: "pending",
-      })
+      const { data: invitation, error: invitationError } = await supabase
+        .from("invitations")
+        .insert({
+          email: formData.email,
+          nombre: formData.nombre,
+          apellido: formData.apellido,
+          invitation_code: invitationCode,
+          groups: formData.groups, // Guardar los grupos seleccionados
+          created_by: currentUser.id,
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          status: "pending",
+        })
+        .select()
+        .single()
 
-      if (error) throw error
+      if (invitationError) throw invitationError
 
       toast({
         title: "Invitación creada",
@@ -233,7 +253,7 @@ export function InvitationsManagement() {
         email: "",
         nombre: "",
         apellido: "",
-        role: "user",
+        groups: [],
       })
     } catch (error) {
       console.error("Error creating invitation:", error)
@@ -422,22 +442,20 @@ export function InvitationsManagement() {
                   />
                 </div>
                 <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="role" className="text-right">
-                    Rol
+                  <Label htmlFor="groups" className="text-right">
+                    Grupos
                   </Label>
-                  <Select
-                    name="role"
-                    value={formData.role}
-                    onValueChange={(value) => setFormData((prev) => ({ ...prev, role: value }))}
-                  >
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Seleccione un rol" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="user">Usuario</SelectItem>
-                      <SelectItem value="admin">Administrador</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <div className="col-span-3">
+                    <MultiSelect
+                      options={availableGroups.map((group) => ({
+                        label: group.name,
+                        value: group.id,
+                      }))}
+                      selected={formData.groups}
+                      onChange={(selected) => setFormData((prev) => ({ ...prev, groups: selected }))}
+                      placeholder="Seleccione grupos"
+                    />
+                  </div>
                 </div>
               </div>
               <DialogFooter>
@@ -474,7 +492,7 @@ export function InvitationsManagement() {
                 <tr>
                   <th className="text-left p-3 border-b">Email</th>
                   <th className="text-left p-3 border-b">Nombre</th>
-                  <th className="text-left p-3 border-b">Rol</th>
+                  <th className="text-left p-3 border-b">Grupos</th>
                   <th className="text-left p-3 border-b">Estado</th>
                   <th className="text-left p-3 border-b w-[80px]"></th>
                 </tr>
@@ -517,7 +535,25 @@ export function InvitationsManagement() {
                     <tr key={invitation.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">{invitation.email}</td>
                       <td className="p-3">{`${invitation.nombre} ${invitation.apellido || ""}`}</td>
-                      <td className="p-3">{invitation.role}</td>
+                      <td className="p-3">
+                        {invitation.groups && invitation.groups.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {invitation.groups.map((groupId) => {
+                              const group = availableGroups.find((g) => g.id === groupId)
+                              return group ? (
+                                <span
+                                  key={groupId}
+                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                                >
+                                  {group.name}
+                                </span>
+                              ) : null
+                            })}
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">Sin grupos</span>
+                        )}
+                      </td>
                       <td className="p-3">{invitation.status}</td>
                       <td className="p-3">
                         <DropdownMenu>

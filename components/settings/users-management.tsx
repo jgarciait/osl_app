@@ -10,7 +10,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
   DialogContent,
@@ -30,12 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Search, MoreHorizontal, Edit, Trash, Loader2 } from "lucide-react"
-
-// Roles disponibles en el sistema
-const ROLES = [
-  { value: "user", label: "Usuario" },
-  { value: "admin", label: "Administrador" },
-]
+import { MultiSelect } from "@/components/ui/multi-select"
 
 export function UsersManagement() {
   const { toast } = useToast()
@@ -53,13 +47,15 @@ export function UsersManagement() {
     nombre: "",
     apellido: "",
     telefono: "",
-    role: "user",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [groups, setGroups] = useState([])
+  const [selectedGroups, setSelectedGroups] = useState([])
 
   // Cargar usuarios al montar el componente
   useEffect(() => {
     fetchUsers()
+    fetchGroups()
   }, [])
 
   // Función para obtener usuarios
@@ -71,8 +67,34 @@ export function UsersManagement() {
 
       if (profilesError) throw profilesError
 
+      // Obtener todos los grupos para referencia
+      const { data: allGroups, error: groupsError } = await supabase.from("groups").select("id, name")
+
+      if (groupsError) throw groupsError
+
+      // Crear un mapa de grupos para búsqueda rápida
+      const groupsMap = allGroups.reduce((acc, group) => {
+        acc[group.id] = group.name
+        return acc
+      }, {})
+
+      // Obtener los grupos de cada usuario
+      const { data: userGroups, error: userGroupsError } = await supabase
+        .from("user_groups")
+        .select("user_id, group_id")
+
+      if (userGroupsError) throw userGroupsError
+
+      // Organizar los grupos por usuario
+      const userGroupsMap = userGroups.reduce((acc, ug) => {
+        if (!acc[ug.user_id]) {
+          acc[ug.user_id] = []
+        }
+        acc[ug.user_id].push(ug.group_id)
+        return acc
+      }, {})
+
       // Usar solo los datos de profiles y asegurar que no haya valores nulos
-      // Asignar un rol predeterminado ya que la columna no existe en la base de datos
       const formattedUsers = profiles.map((profile) => ({
         id: profile.id || "",
         email: profile.email || "",
@@ -81,8 +103,9 @@ export function UsersManagement() {
         nombre: profile.nombre || "",
         apellido: profile.apellido || "",
         telefono: profile.telefono || "",
-        // Asignar un rol predeterminado en lugar de intentar leer desde la base de datos
-        role: "user",
+        // Agregar los grupos del usuario
+        groups: (userGroupsMap[profile.id] || []).map((groupId) => groupsMap[groupId]),
+        groupIds: userGroupsMap[profile.id] || [],
       }))
 
       setUsers(formattedUsers)
@@ -95,6 +118,53 @@ export function UsersManagement() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Función para obtener grupos
+  const fetchGroups = async () => {
+    try {
+      const { data, error } = await supabase.from("groups").select("*").order("name", { ascending: true })
+
+      if (error) throw error
+
+      setGroups(data)
+    } catch (error) {
+      console.error("Error fetching groups:", error)
+      toast({
+        variant: "destructive",
+        title: "Error al cargar grupos",
+        description: error.message || "No se pudieron cargar los grupos",
+      })
+    }
+  }
+
+  // Función para obtener grupos de un usuario
+  const fetchUserGroups = async (userId) => {
+    try {
+      const { data, error } = await supabase
+        .from("user_groups")
+        .select(`
+        group_id,
+        groups (
+          id,
+          name
+        )
+      `)
+        .eq("user_id", userId)
+
+      if (error) throw error
+
+      // Formatear los datos para el multi-select
+      const userGroupIds = data.map((item) => item.group_id)
+      setSelectedGroups(userGroupIds)
+    } catch (error) {
+      console.error("Error fetching user groups:", error)
+      toast({
+        variant: "destructive",
+        title: "Error al cargar grupos del usuario",
+        description: error.message || "No se pudieron cargar los grupos del usuario",
+      })
     }
   }
 
@@ -121,8 +191,8 @@ export function UsersManagement() {
       nombre: user.nombre || "",
       apellido: user.apellido || "",
       telefono: user.telefono || "",
-      role: user.role || "user",
     })
+    setSelectedGroups(user.groupIds || [])
     setIsEditDialogOpen(true)
   }
 
@@ -167,6 +237,24 @@ export function UsersManagement() {
       if (profileError) {
         console.error("Error detallado:", profileError)
         throw profileError
+      }
+
+      // Actualizar grupos del usuario
+      // 1. Eliminar todos los grupos actuales
+      const { error: deleteError } = await supabase.from("user_groups").delete().eq("user_id", selectedUser.id)
+
+      if (deleteError) throw deleteError
+
+      // 2. Insertar los nuevos grupos seleccionados
+      if (selectedGroups.length > 0) {
+        const groupsToInsert = selectedGroups.map((groupId) => ({
+          user_id: selectedUser.id,
+          group_id: groupId,
+        }))
+
+        const { error: insertError } = await supabase.from("user_groups").insert(groupsToInsert)
+
+        if (insertError) throw insertError
       }
 
       toast({
@@ -254,7 +342,7 @@ export function UsersManagement() {
                 <tr>
                   <th className="text-left p-3 border-b">Email</th>
                   <th className="text-left p-3 border-b">Nombre</th>
-                  <th className="text-left p-3 border-b">Rol</th>
+                  <th className="text-left p-3 border-b">Grupos</th>
                   <th className="text-left p-3 border-b">Fecha Creación</th>
                   <th className="text-left p-3 border-b w-[80px]"></th>
                 </tr>
@@ -278,9 +366,17 @@ export function UsersManagement() {
                       <td className="p-3">{user.email}</td>
                       <td className="p-3">{`${user.nombre} ${user.apellido}`}</td>
                       <td className="p-3">
-                        <Badge variant={user.role === "admin" ? "default" : "outline"}>
-                          {user.role === "admin" ? "Administrador" : "Usuario"}
-                        </Badge>
+                        {user.groups && user.groups.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {user.groups.map((group, index) => (
+                              <Badge key={index} variant="outline" className="mr-1">
+                                {group}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">Sin grupos</span>
+                        )}
                       </td>
                       <td className="p-3">{new Date(user.created_at).toLocaleDateString()}</td>
                       <td className="p-3">
@@ -389,25 +485,17 @@ export function UsersManagement() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="role" className="text-right">
-                  Rol
+                <Label htmlFor="groups" className="text-right">
+                  Grupos
                 </Label>
-                <Select
-                  name="role"
-                  value={formData.role}
-                  onValueChange={(value) => setFormData((prev) => ({ ...prev, role: value }))}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione un rol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((role) => (
-                      <SelectItem key={role.value} value={role.value}>
-                        {role.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="col-span-3">
+                  <MultiSelect
+                    options={groups.map((group) => ({ label: group.name, value: group.id }))}
+                    selected={selectedGroups}
+                    onChange={setSelectedGroups}
+                    placeholder="Seleccione grupos"
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
