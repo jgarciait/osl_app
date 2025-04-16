@@ -62,8 +62,6 @@
     "@tiptap/pm": "latest",
     "@tiptap/core": "latest",
     "jspdf": "latest",
-    "xlsx": "latest",
-    "react-select": "latest",
     "@supabase/ssr": "latest",
     "@tanstack/react-table": "latest",
     "@tiptap/react": "latest",
@@ -72,6 +70,7 @@
     "jspdf-autotable": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
     "@radix-ui/react-icons": "latest",
+    "react-select": "latest",
     "react-colorful": "latest"
   },
   "devDependencies": {
