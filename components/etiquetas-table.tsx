@@ -20,14 +20,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function EtiquetasTable({ etiquetas = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
-  const { hasPermission } = useGroupPermissions()
-  const canManageEtiquetas = hasPermission("tags", "manage")
 
   const [isDeleting, setIsDeleting] = useState(false)
   const [etiquetaToDelete, setEtiquetaToDelete] = useState(null)
@@ -141,7 +138,7 @@ export function EtiquetasTable({ etiquetas = [] }) {
               <TableRow>
                 <TableHead>Color</TableHead>
                 <TableHead>Nombre</TableHead>
-                {canManageEtiquetas ? <TableHead className="w-[80px]"></TableHead> : null}
+                <TableHead className="w-[80px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -162,28 +159,26 @@ export function EtiquetasTable({ etiquetas = [] }) {
                       />
                     </TableCell>
                     <TableCell className="font-medium">{etiqueta.nombre}</TableCell>
-                    {canManageEtiquetas ? (
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Acciones</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(etiqueta)}>
-                              <Edit className="mr-2 h-4 w-4" />
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setEtiquetaToDelete(etiqueta)} className="text-red-600">
-                              <Trash className="mr-2 h-4 w-4" />
-                              Eliminar
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    ) : null}
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Acciones</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(etiqueta)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEtiquetaToDelete(etiqueta)} className="text-red-600">
+                            <Trash className="mr-2 h-4 w-4" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
                   </TableRow>
                 ))
               )}
