@@ -33,3 +33,13 @@ export function debounce<T extends (...args: any[]) => any>(func: T, wait: numbe
     timeout = setTimeout(later, wait)
   }
 }
+
+// Utility function to safely handle arrays
+export function safeArray<T>(arr: T[] | null | undefined): T[] {
+  return Array.isArray(arr) ? arr : []
+}
+
+// Utility function to safely get a property from an object
+export function safeGet<T, K extends keyof T>(obj: T | null | undefined, key: K, defaultValue: T[K]): T[K] {
+  return obj && obj[key] !== undefined ? obj[key] : defaultValue
+}

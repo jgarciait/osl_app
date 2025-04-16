@@ -1,20 +1,10 @@
-import { createServerClient } from "@/lib/supabase-server"
 import { ComitesTable } from "@/components/comites-table"
 import { ComiteForm } from "@/components/comite-form"
+import { safeSupabaseFetch } from "@/lib/supabase-helpers"
 
 export default async function ComitesPage() {
-  const supabase = await createServerClient()
-
-  // Fetch committees
-  const { data: comites, error } = await supabase
-    .from("comites")
-    .select("*")
-    .order("tipo", { ascending: true })
-    .order("nombre", { ascending: true })
-
-  if (error) {
-    console.error("Error fetching committees:", error)
-  }
+  // Use safeSupabaseFetch to fetch comites
+  const comites = await safeSupabaseFetch("comites", "*")
 
   return (
     <>
@@ -22,7 +12,7 @@ export default async function ComitesPage() {
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
             <ComiteForm />
-            <ComitesTable comites={Array.isArray(comites) ? comites : []} />
+            <ComitesTable comites={comites} />
           </div>
         </div>
       </div>
