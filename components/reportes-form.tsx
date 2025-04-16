@@ -16,6 +16,7 @@ import { es } from "date-fns/locale"
 import { CalendarIcon, Download, FileSpreadsheet, FileText, Loader2 } from "lucide-react"
 import * as XLSX from "xlsx"
 import dynamic from "next/dynamic"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 // Importar react-select de forma dinámica para evitar problemas de carga
 const ReactSelect = dynamic(() => import("react-select"), { ssr: false })
@@ -53,6 +54,8 @@ export function ReportesForm({ years = [], comites = [] }) {
     status: "all",
     selectedComisiones: [],
   })
+
+  const { hasPermission } = useGroupPermissions()
 
   const handleDateChange = (field, date) => {
     setFilters((prev) => ({ ...prev, [field]: date }))
@@ -553,20 +556,22 @@ export function ReportesForm({ years = [], comites = [] }) {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end space-x-4">
-            <Button
-              onClick={() => (downloadState.format === "csv" ? downloadCSV(false) : downloadExcel(false))}
-              disabled={downloadState.isLoading}
-              className="flex items-center bg-[#1a365d] hover:bg-[#15294d]"
-            >
-              {downloadState.isLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : downloadState.format === "csv" ? (
-                <FileText className="mr-2 h-4 w-4" />
-              ) : (
-                <FileSpreadsheet className="mr-2 h-4 w-4" />
-              )}
-              Descargar {downloadState.format === "csv" ? "CSV" : "Excel"}
-            </Button>
+            {hasPermission("reports", "manage") && (
+              <Button
+                onClick={() => (downloadState.format === "csv" ? downloadCSV(false) : downloadExcel(false))}
+                disabled={downloadState.isLoading}
+                className="flex items-center bg-[#1a365d] hover:bg-[#15294d]"
+              >
+                {downloadState.isLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : downloadState.format === "csv" ? (
+                  <FileText className="mr-2 h-4 w-4" />
+                ) : (
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                )}
+                Descargar {downloadState.format === "csv" ? "CSV" : "Excel"}
+              </Button>
+            )}
           </CardFooter>
         </Card>
       </TabsContent>
@@ -595,18 +600,20 @@ export function ReportesForm({ years = [], comites = [] }) {
             </div>
           </CardContent>
           <CardFooter className="flex justify-end space-x-4">
-            <Button
-              onClick={() => (downloadState.format === "csv" ? downloadCSV(true) : downloadExcel(true))}
-              disabled={downloadState.isLoading}
-              className="flex items-center bg-[#1a365d] hover:bg-[#15294d]"
-            >
-              {downloadState.isLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              Backup en {downloadState.format === "csv" ? "CSV" : "Excel"}
-            </Button>
+            {hasPermission("reports", "manage") && (
+              <Button
+                onClick={() => (downloadState.format === "csv" ? downloadCSV(true) : downloadExcel(true))}
+                disabled={downloadState.isLoading}
+                className="flex items-center bg-[#1a365d] hover:bg-[#15294d]"
+              >
+                {downloadState.isLoading ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Download className="mr-2 h-4 w-4" />
+                )}
+                Backup en {downloadState.format === "csv" ? "CSV" : "Excel"}
+              </Button>
+            )}
           </CardFooter>
         </Card>
       </TabsContent>
