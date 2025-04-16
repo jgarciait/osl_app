@@ -61,6 +61,64 @@ export function ClasificacionesTable() {
 
   useEffect(() => {
     fetchClasificaciones()
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("clasificaciones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "clasificaciones",
+        },
+        (payload) => {
+          console.log("Cambio en tiempo real recibido:", payload)
+
+          if (payload.eventType === "INSERT") {
+            // Add new classification
+            const newClasificacion = payload.new as Clasificacion
+            setClasificaciones((prev) => {
+              const updated = [...prev, newClasificacion]
+              // Sort by name
+              return updated.sort((a, b) => a.nombre.localeCompare(b.nombre))
+            })
+
+            toast({
+              title: "Nueva clasificación",
+              description: `Se ha agregado la clasificación "${newClasificacion.nombre}"`,
+            })
+          } else if (payload.eventType === "UPDATE") {
+            // Update existing classification
+            const updatedClasificacion = payload.new as Clasificacion
+            setClasificaciones((prev) =>
+              prev
+                .map((item) => (item.id === updatedClasificacion.id ? updatedClasificacion : item))
+                .sort((a, b) => a.nombre.localeCompare(b.nombre)),
+            )
+
+            toast({
+              title: "Clasificación actualizada",
+              description: `Se ha actualizado la clasificación "${updatedClasificacion.nombre}"`,
+            })
+          } else if (payload.eventType === "DELETE") {
+            // Remove deleted classification
+            const deletedClasificacion = payload.old as Clasificacion
+            setClasificaciones((prev) => prev.filter((item) => item.id !== deletedClasificacion.id))
+
+            toast({
+              title: "Clasificación eliminada",
+              description: `Se ha eliminado una clasificación`,
+            })
+          }
+        },
+      )
+      .subscribe()
+
+    // Clean up subscription on unmount
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   // Manejar eliminación
@@ -72,13 +130,7 @@ export function ClasificacionesTable() {
 
       if (error) throw error
 
-      toast({
-        title: "Clasificación eliminada",
-        description: "La clasificación ha sido eliminada exitosamente",
-      })
-
-      // Actualizar la lista
-      fetchClasificaciones()
+      // No need to call fetchClasificaciones, real-time will handle it
     } catch (error: any) {
       console.error("Error al eliminar clasificación:", error)
       toast({
@@ -112,7 +164,7 @@ export function ClasificacionesTable() {
               <ClasificacionForm
                 onSuccess={() => {
                   setIsAddDialogOpen(false)
-                  fetchClasificaciones()
+                  // Real-time will handle the update
                 }}
               />
             </DialogContent>
@@ -185,7 +237,7 @@ export function ClasificacionesTable() {
                 clasificacion={selectedClasificacion}
                 onSuccess={() => {
                   setIsEditDialogOpen(false)
-                  fetchClasificaciones()
+                  // Real-time will handle the update
                 }}
               />
             )}
