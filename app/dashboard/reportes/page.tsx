@@ -2,7 +2,7 @@
 
 import { ReportesForm } from "@/components/reportes-form"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
-import { createServerClient } from "@/lib/supabase-server"
+import { createServerClient } from "@/lib/supabase-client"
 import { useEffect, useState } from "react"
 
 // Create a client component to use the useGroupPermissions hook
