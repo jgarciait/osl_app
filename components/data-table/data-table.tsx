@@ -23,7 +23,7 @@ export function DataTable<TData, TValue>({
   tagMap = {}, // Valor por defecto vacío
 }: DataTableProps<TData, TValue>) {
   return (
-    <div className="rounded-md border mt-2">
+    <div className="rounded-md border mt-2 w-full">
       <Table>
         <TableHeader>
           {table.getHeaderGroups().map((headerGroup) => {

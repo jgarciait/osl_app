@@ -356,7 +356,7 @@ export default function ExpresionesPage() {
   }
 
   return (
-    <div className="container mx-auto">
+    <div className="w-full">
       <div className="flex justify-between items-center mb-6"></div>
       <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
     </div>
