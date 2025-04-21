@@ -9,6 +9,7 @@ export default function ExpresionesPage() {
   const [expresiones, setExpresiones] = useState([])
   const [years, setYears] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [tagMap, setTagMap] = useState({})
   const supabase = createClientClient()
   const { toast } = useToast()
 
@@ -25,6 +26,23 @@ export default function ExpresionesPage() {
     const fetchData = async () => {
       try {
         setIsLoading(true)
+
+        // Obtener todas las etiquetas y crear un mapa de ID a nombre
+        const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
+
+        if (etiquetasError) {
+          console.error("Error al obtener etiquetas:", etiquetasError)
+          throw etiquetasError
+        }
+
+        // Crear un mapa de ID a nombre de etiqueta
+        const etiquetasMap = {}
+        etiquetas.forEach((etiqueta) => {
+          etiquetasMap[etiqueta.id] = etiqueta.nombre
+        })
+
+        // Guardar el mapa de etiquetas
+        setTagMap(etiquetasMap)
 
         // Obtener los perfiles de usuarios con caché
         const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
@@ -92,7 +110,7 @@ export default function ExpresionesPage() {
         })
 
         // Procesar los datos para incluir el nombre del tema y el nombre del usuario asignado
-        const processedData = data.map((expresion) => {
+        let processedData = data.map((expresion) => {
           // Primero intentamos obtener el tema de la relación muchos a muchos
           let tema_nombre = "Sin asignar"
 
@@ -116,6 +134,60 @@ export default function ExpresionesPage() {
             assigned_to_name,
           }
         })
+
+        // Después de procesar los datos de expresiones, cargar información de etiquetas
+        if (data && data.length > 0) {
+          // Obtener IDs de todas las expresiones
+          const expresionIds = data.map((exp) => exp.id)
+
+          // Consultar documentos y sus etiquetas para estas expresiones
+          const { data: documentosConEtiquetas, error: documentosError } = await supabase
+            .from("documentos")
+            .select(`
+              id,
+              expresion_id,
+              documento_etiquetas(etiqueta_id)
+            `)
+            .in("expresion_id", expresionIds)
+
+          if (documentosError) {
+            console.error("Error al obtener documentos con etiquetas:", documentosError)
+            throw documentosError
+          }
+
+          // Crear un mapa de expresión a etiquetas
+          const expresionEtiquetasMap = new Map()
+
+          // Procesar los datos para agrupar etiquetas por expresión
+          documentosConEtiquetas.forEach((doc) => {
+            if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
+              const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
+
+              if (!expresionEtiquetasMap.has(doc.expresion_id)) {
+                expresionEtiquetasMap.set(doc.expresion_id, new Set())
+              }
+
+              // Añadir etiquetas al conjunto para esta expresión
+              tagIds.forEach((tagId) => {
+                expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
+              })
+            }
+          })
+
+          // Actualizar los datos procesados con la información de etiquetas
+          processedData = processedData.map((exp) => {
+            const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
+
+            // Convertir IDs a nombres de etiquetas
+            const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
+
+            return {
+              ...exp,
+              document_tags: tagIds,
+              document_tag_names: tagNames,
+            }
+          })
+        }
 
         setExpresiones(processedData)
 
@@ -182,6 +254,8 @@ export default function ExpresionesPage() {
                 ...newExpresion,
                 tema_nombre,
                 assigned_to_name,
+                document_tags: [],
+                document_tag_names: [],
               },
               ...prev,
             ])
@@ -203,6 +277,8 @@ export default function ExpresionesPage() {
                     ...payload.new,
                     tema_nombre,
                     assigned_to_name,
+                    document_tags: exp.document_tags || [],
+                    document_tag_names: exp.document_tag_names || [],
                   }
                 }
                 return exp
@@ -280,9 +356,9 @@ export default function ExpresionesPage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto">
       <div className="flex justify-between items-center mb-6"></div>
-      <ExpresionesTable expresiones={expresiones} years={years} />
+      <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
     </div>
   )
 }

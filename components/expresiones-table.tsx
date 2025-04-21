@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { createClientClient, handleAuthError } from "@/lib/supabase-client"
+import { createClientClient, handleAuthError, cachedQuery } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/use-toast"
 import {
   type ColumnDef,
@@ -78,9 +78,10 @@ async function fetchWithRetry(fetchFn, maxRetries = 3, initialDelay = 1000) {
 interface ExpresionesTableProps {
   expresiones: any[]
   years: number[]
+  tagMap?: Record<string, string>
 }
 
-export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) {
+export function ExpresionesTable({ expresiones, years, tagMap = {} }: ExpresionesTableProps) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
@@ -114,6 +115,7 @@ export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) 
   const [isFilteringByCurrentUser, setIsFilteringByCurrentUser] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [tagOptions, setTagOptions] = useState([])
 
   // Ref para controlar las solicitudes de datos
   const isDataFetched = useRef(false)
@@ -367,6 +369,25 @@ export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) 
             </div>
           )
         },
+      },
+      {
+        id: "document_tags",
+        accessorFn: (row) => row.document_tags || [],
+        filterFn: (row, id, filterValue) => {
+          // Si no hay valores de filtro, devolver true
+          if (!filterValue || filterValue.length === 0) return true
+
+          // Obtener las etiquetas de los documentos de esta expresión
+          const rowTags = row.getValue(id)
+
+          // Si no hay etiquetas, devolver false
+          if (!rowTags || rowTags.length === 0) return false
+
+          // Comprobar si alguna de las etiquetas coincide con los valores de filtro
+          return filterValue.some((filter) => rowTags.includes(filter))
+        },
+        enableSorting: false,
+        enableHiding: true,
       },
       {
         id: "actions",
@@ -971,7 +992,7 @@ export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) 
         }
       }
 
-      // Finalmente eliminar la expresión
+      // Finally eliminar la expresión
       const { error: expresionError } = await supabase.from("expresiones").delete().eq("id", expressionToDelete.id)
 
       if (expresionError) {
@@ -1026,6 +1047,38 @@ export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) 
     return options
   }, [users, currentUser])
 
+  // Añadir esta función para cargar las etiquetas disponibles
+  const fetchTags = async () => {
+    try {
+      const { data, error } = await cachedQuery("etiquetas", () =>
+        supabase.from("etiquetas").select("id, nombre, color").order("nombre"),
+      )
+
+      if (error) throw error
+
+      // Transformar los datos para el formato del filtro
+      const options = data.map((tag) => ({
+        label: tag.nombre,
+        value: tag.id,
+        color: tag.color,
+      }))
+
+      setTagOptions(options)
+    } catch (error) {
+      console.error("Error al cargar etiquetas:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar las etiquetas para el filtro",
+      })
+    }
+  }
+
+  // Cargar las etiquetas al montar el componente
+  useEffect(() => {
+    fetchTags()
+  }, [])
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
@@ -1064,6 +1117,7 @@ export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) 
         yearOptions={yearOptions}
         monthOptions={monthOptions}
         assignedUserOptions={assignedUserOptions}
+        tagOptions={tagOptions}
       />
 
       {isLoading ? (
@@ -1078,6 +1132,7 @@ export function ExpresionesTable({ expresiones, years }: ExpresionesTableProps) 
             onRowClick={handleRowClick}
             onRowRightClick={handleRowRightClick}
             canEdit={canManageExpressions}
+            tagMap={tagMap}
           />
           <DataTablePagination table={table} />
         </>
