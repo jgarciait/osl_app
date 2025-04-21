@@ -7,11 +7,12 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Loader2 } from "lucide-react"
 import { HexColorPicker } from "react-colorful"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { PermissionGuard } from "@/components/permission-guard"
 
 export function EtiquetasForm() {
   const router = useRouter()
@@ -113,89 +114,91 @@ export function EtiquetasForm() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{formData.id ? "Editar Etiqueta" : "Nueva Etiqueta"}</CardTitle>
-        <CardDescription>
-          {formData.id
-            ? "Actualice la información de la etiqueta"
-            : "Complete el formulario para crear una nueva etiqueta"}
-        </CardDescription>
-      </CardHeader>
-      <form onSubmit={handleSubmit}>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="nombre">Nombre</Label>
-            <Input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} required />
-          </div>
+    <PermissionGuard resource="tags" action="manage" fallback={null}>
+      <Card>
+        <CardHeader>
+          <CardTitle>{formData.id ? "Editar Etiqueta" : "Nueva Etiqueta"}</CardTitle>
+          <CardDescription>
+            {formData.id
+              ? "Actualice la información de la etiqueta"
+              : "Complete el formulario para crear una nueva etiqueta"}
+          </CardDescription>
+        </CardHeader>
+        <form onSubmit={handleSubmit}>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="nombre">Nombre</Label>
+              <Input id="nombre" name="nombre" value={formData.nombre} onChange={handleInputChange} required />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="descripcion">Descripción</Label>
-            <Textarea
-              id="descripcion"
-              name="descripcion"
-              value={formData.descripcion}
-              onChange={handleInputChange}
-              rows={3}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="color">Color</Label>
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-md border"
-                style={{ backgroundColor: formData.color }}
-                aria-hidden="true"
-              />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" type="button">
-                    Cambiar color
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-3">
-                  <HexColorPicker
-                    color={formData.color}
-                    onChange={(color) => setFormData((prev) => ({ ...prev, color }))}
-                  />
-                </PopoverContent>
-              </Popover>
-              <Input
-                id="color"
-                name="color"
-                value={formData.color}
+            <div className="space-y-2">
+              <Label htmlFor="descripcion">Descripción</Label>
+              <Textarea
+                id="descripcion"
+                name="descripcion"
+                value={formData.descripcion}
                 onChange={handleInputChange}
-                className="w-32"
-                maxLength={20}
+                rows={3}
               />
             </div>
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          {formData.id && (
-            <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
-              Cancelar
-            </Button>
-          )}
-          <Button
-            type="submit"
-            disabled={isSubmitting}
-            className={`${formData.id ? "" : "w-full"} bg-[#1a365d] hover:bg-[#15294d]`}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {formData.id ? "Actualizando..." : "Guardando..."}
-              </>
-            ) : formData.id ? (
-              "Actualizar"
-            ) : (
-              "Guardar"
+
+            <div className="space-y-2">
+              <Label htmlFor="color">Color</Label>
+              <div className="flex items-center gap-3">
+                <div
+                  className="w-10 h-10 rounded-md border"
+                  style={{ backgroundColor: formData.color }}
+                  aria-hidden="true"
+                />
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" type="button">
+                      Cambiar color
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-3">
+                    <HexColorPicker
+                      color={formData.color}
+                      onChange={(color) => setFormData((prev) => ({ ...prev, color }))}
+                    />
+                  </PopoverContent>
+                </Popover>
+                <Input
+                  id="color"
+                  name="color"
+                  value={formData.color}
+                  onChange={handleInputChange}
+                  className="w-32"
+                  maxLength={20}
+                />
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            {formData.id && (
+              <Button type="button" variant="outline" onClick={handleCancel} disabled={isSubmitting}>
+                Cancelar
+              </Button>
             )}
-          </Button>
-        </CardFooter>
-      </form>
-    </Card>
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className={`${formData.id ? "" : "w-full"} bg-[#1a365d] hover:bg-[#15294d]`}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {formData.id ? "Actualizando..." : "Guardando..."}
+                </>
+              ) : formData.id ? (
+                "Actualizar"
+              ) : (
+                "Guardar"
+              )}
+            </Button>
+          </CardFooter>
+        </form>
+      </Card>
+    </PermissionGuard>
   )
 }

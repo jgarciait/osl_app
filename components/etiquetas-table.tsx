@@ -20,11 +20,14 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 export function EtiquetasTable({ etiquetas: initialEtiquetas = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
+  const { hasPermission } = useGroupPermissions()
+  const canManageTags = hasPermission("tags", "manage")
 
   const [etiquetas, setEtiquetas] = useState(initialEtiquetas)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -53,25 +56,25 @@ export function EtiquetasTable({ etiquetas: initialEtiquetas = [] }) {
 
           // Manejar diferentes tipos de eventos
           if (payload.eventType === "INSERT") {
-            setEtiquetas((current) => {
-              const newEtiquetas = [...current, payload.new]
+            setEtiquetas((prevEtiquetas) => {
+              const newEtiquetas = [...prevEtiquetas, payload.new]
               // Ordenar por nombre
               return newEtiquetas.sort((a, b) => a.nombre.localeCompare(b.nombre))
             })
             toast({
               title: "Nueva etiqueta",
-              description: `Se ha creado la etiqueta "${payload.new.nombre}"`,
+              description: `Se ha agregado la etiqueta "${payload.new.nombre}"`,
             })
           } else if (payload.eventType === "UPDATE") {
-            setEtiquetas((current) =>
-              current.map((etiqueta) => (etiqueta.id === payload.new.id ? payload.new : etiqueta)),
+            setEtiquetas((prevEtiquetas) =>
+              prevEtiquetas.map((etiqueta) => (etiqueta.id === payload.new.id ? payload.new : etiqueta)),
             )
             toast({
               title: "Etiqueta actualizada",
               description: `Se ha actualizado la etiqueta "${payload.new.nombre}"`,
             })
           } else if (payload.eventType === "DELETE") {
-            setEtiquetas((current) => current.filter((etiqueta) => etiqueta.id !== payload.old.id))
+            setEtiquetas((prevEtiquetas) => prevEtiquetas.filter((etiqueta) => etiqueta.id !== payload.old.id))
             toast({
               title: "Etiqueta eliminada",
               description: `Se ha eliminado la etiqueta "${payload.old.nombre}"`,
@@ -211,24 +214,26 @@ export function EtiquetasTable({ etiquetas: initialEtiquetas = [] }) {
                     </TableCell>
                     <TableCell className="font-medium">{etiqueta.nombre}</TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Acciones</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEdit(etiqueta)}>
-                            <Edit className="mr-2 h-4 w-4" />
-                            Editar
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setEtiquetaToDelete(etiqueta)} className="text-red-600">
-                            <Trash className="mr-2 h-4 w-4" />
-                            Eliminar
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      {canManageTags ? (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Acciones</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(etiqueta)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEtiquetaToDelete(etiqueta)} className="text-red-600">
+                              <Trash className="mr-2 h-4 w-4" />
+                              Eliminar
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))
