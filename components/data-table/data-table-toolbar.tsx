@@ -30,6 +30,8 @@ interface DataTableToolbarProps<TData> {
     value: string
     color?: string
   }[]
+  globalFilter?: string
+  setGlobalFilter?: (value: string) => void
 }
 
 export function DataTableToolbar<TData>({
@@ -39,6 +41,8 @@ export function DataTableToolbar<TData>({
   monthOptions,
   assignedUserOptions,
   tagOptions,
+  globalFilter,
+  setGlobalFilter,
 }: DataTableToolbarProps<TData>) {
   const isFiltered = table.getState().columnFilters.length > 0
 
@@ -46,10 +50,10 @@ export function DataTableToolbar<TData>({
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
         <Input
-          placeholder="Buscar..."
-          value={(table.getColumn("nombre")?.getFilterValue() as string) ?? ""}
-          onChange={(event) => table.getColumn("nombre")?.setFilterValue(event.target.value)}
-          className="h-8 w-[150px] lg:w-[250px]"
+          placeholder="Buscar en Número, Nombre, Email, Tema..."
+          value={globalFilter ?? ""}
+          onChange={(event) => setGlobalFilter?.(event.target.value)}
+          className="h-8 w-[150px] lg:w-[300px]"
         />
         {isFiltered && (
           <Button variant="ghost" onClick={() => table.resetColumnFilters()} className="h-8 px-2 lg:px-3">

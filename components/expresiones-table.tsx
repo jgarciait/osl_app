@@ -116,6 +116,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
   const [isLoading, setIsLoading] = useState(true)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [tagOptions, setTagOptions] = useState([])
+  const [globalFilter, setGlobalFilter] = useState("")
 
   // Ref para controlar las solicitudes de datos
   const isDataFetched = useRef(false)
@@ -629,11 +630,29 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
     onColumnFiltersChange: setColumnFilters,
     getFilteredRowModel: getFilteredRowModel(),
     onRowSelectionChange: setRowSelection,
+    globalFilterFn: (row, columnId, filterValue) => {
+      const searchValue = filterValue.toLowerCase()
+
+      // Check multiple fields for the search term
+      const numero = String(row.getValue("numero") || "").toLowerCase()
+      const nombre = String(row.getValue("nombre") || "").toLowerCase()
+      const email = String(row.original.email || "").toLowerCase()
+      const tema = String(row.getValue("tema_nombre") || "").toLowerCase()
+
+      return (
+        numero.includes(searchValue) ||
+        nombre.includes(searchValue) ||
+        email.includes(searchValue) ||
+        tema.includes(searchValue)
+      )
+    },
     state: {
       sorting,
       columnFilters,
       rowSelection,
+      globalFilter,
     },
+    onGlobalFilterChange: setGlobalFilter,
   })
 
   const statusOptions = [
@@ -1118,6 +1137,8 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
         monthOptions={monthOptions}
         assignedUserOptions={assignedUserOptions}
         tagOptions={tagOptions}
+        globalFilter={globalFilter}
+        setGlobalFilter={setGlobalFilter}
       />
 
       {isLoading ? (
