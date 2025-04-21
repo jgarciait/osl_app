@@ -69,8 +69,8 @@
     "@tiptap/extension-placeholder": "latest",
     "jspdf-autotable": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
-    "react-select": "latest",
     "xlsx": "latest",
+    "react-select": "latest",
     "react-colorful": "latest",
     "@radix-ui/react-icons": "latest"
   },

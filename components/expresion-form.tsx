@@ -180,12 +180,12 @@ export function ExpresionForm({
     }
   }, [supabase, toast])
 
-  // Cargar documentos existentes cuando estamos en modo edición
+  // Cargar documentos existentes cuando estamos en modo edición o solo lectura
   useEffect(() => {
-    if (isEditing && expresion?.id) {
+    if ((isEditing || readOnly) && expresion?.id) {
       fetchExistingDocuments(expresion.id)
     }
-  }, [isEditing, expresion?.id])
+  }, [isEditing, readOnly, expresion?.id])
 
   // Efecto para actualizar el número de expresión cuando cambia el tema o el año
   useEffect(() => {
@@ -311,8 +311,15 @@ export function ExpresionForm({
               console.log("Cambio en documentos de la expresión:", payload)
 
               if (payload.eventType === "INSERT") {
-                // Añadir nuevo documento a la lista
-                setExistingDocuments((prev) => [...prev, payload.new])
+                // Check if document already exists in the list before adding it
+                setExistingDocuments((prev) => {
+                  // Check if this document is already in the list (avoid duplicates)
+                  const documentExists = prev.some((doc) => doc.id === payload.new.id)
+                  if (documentExists) {
+                    return prev // Don't add it again
+                  }
+                  return [...prev, payload.new]
+                })
               } else if (payload.eventType === "UPDATE") {
                 // Actualizar documento existente
                 setExistingDocuments((prev) => prev.map((doc) => (doc.id === payload.new.id ? payload.new : doc)))
@@ -366,7 +373,7 @@ export function ExpresionForm({
     return () => {
       cleanupRealtimeSubscriptions()
     }
-  }, [isEditing, expresion?.id, supabase])
+  }, [isEditing, expresion?.id, supabase, existingDocuments, documentTags])
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -564,8 +571,11 @@ export function ExpresionForm({
       const uploadedDocs = await uploadFiles(expresionId)
 
       if (uploadedDocs.length > 0) {
-        // Actualizar la lista de documentos existentes
-        setExistingDocuments((prev) => [...prev, ...uploadedDocs])
+        // Update the list of documents, avoiding duplicates
+        setExistingDocuments((prev) => {
+          const newDocs = uploadedDocs.filter((newDoc) => !prev.some((existingDoc) => existingDoc.id === newDoc.id))
+          return [...prev, ...newDocs]
+        })
 
         // Transferir las etiquetas temporales a los documentos reales
         const newTagsMap = { ...documentTags }
@@ -1237,7 +1247,7 @@ export function ExpresionForm({
           <Card>
             <CardHeader>
               <CardTitle>Documentos</CardTitle>
-              <CardDescription>Adjunte documentos relacionados con la expresión</CardDescription>
+              <CardDescription>Documentos relacionados con la expresión</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {isEditing || readOnly ? (
@@ -1260,7 +1270,7 @@ export function ExpresionForm({
                                 <span className="text-sm">{doc.nombre}</span>
                               </div>
                               <div className="flex items-center space-x-1">
-                                {/* Botones de visualización y descarga */}
+                                {/* Botones de visualización y descarga - siempre visibles en modo lectura */}
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -1365,6 +1375,7 @@ export function ExpresionForm({
                                 >
                                   <Download className="h-4 w-4" />
                                 </Button>
+                                {/* Botón de eliminar - solo visible si NO estamos en modo lectura */}
                                 {!readOnly && (
                                   <Button
                                     type="button"
