@@ -1140,75 +1140,72 @@ export function ExpresionForm({
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Referidos</Label>
-                  <div className="relative">
-                    {typeof window !== "undefined" && (
-                      <ReactSelect
-                        name="comites"
-                        placeholder="Seleccionar comités..."
-                        className="w-full"
-                        classNamePrefix="select"
-                        options={comitesOptions.map((comite) => ({
-                          value: comite.value,
-                          label: `${comite.nombre} (${comite.tipo === "senado" ? "Senado" : "Cámara"})`,
-                          data: {
-                            nombre: comite.nombre,
-                            abreviatura: comite.abreviatura,
-                          },
-                        }))}
-                        value={
-                          selectedComites
-                            ? comitesOptions
-                                .filter((comite) => selectedComites.includes(comite.value))
-                                .map((comite) => ({
-                                  value: comite.value,
-                                  label: comite.label,
-                                }))
-                            : null
-                        }
-                        onChange={(selectedOptions) => {
-                          const selectedValues = selectedOptions ? selectedOptions.map((option) => option.value) : []
-                          handleComitesChange(selectedValues)
-                        }}
-                        isSearchable={true}
-                        isDisabled={readOnly}
-                        styles={{
-                          control: (base) => ({
-                            ...base,
-                            backgroundColor: readOnly ? "#f3f4f6" : "white",
+  <div className="space-y-2">
+                <Label>Referidos</Label>
+                <div className="relative">
+                  {typeof window !== "undefined" && (
+                    <ReactSelect
+                      isMulti
+                      name="comites"
+                      placeholder="Seleccionar comités..."
+                      className="w-full"
+                      classNamePrefix="select"
+                      options={comitesOptions.map((comite) => ({
+                        value: comite.value,
+                        label: comite.label,
+                      }))}
+                      value={
+                        selectedComites
+                          ? comitesOptions
+                              .filter((comite) => selectedComites.includes(comite.value))
+                              .map((comite) => ({
+                                value: comite.value,
+                                label: comite.label,
+                              }))
+                          : null
+                      }
+                      onChange={(selectedOptions) => {
+                        const selectedValues = selectedOptions ? selectedOptions.map((option) => option.value) : []
+                        handleComitesChange(selectedValues)
+                      }}
+                      isSearchable={true}
+                      isDisabled={readOnly}
+                      styles={{
+                        control: (base) => ({
+                          ...base,
+                          backgroundColor: readOnly ? "#f3f4f6" : "white",
+                          borderColor: readOnly ? "transparent" : "hsl(var(--input))",
+                          "&:hover": {
                             borderColor: readOnly ? "transparent" : "hsl(var(--input))",
-                            "&:hover": {
-                              borderColor: readOnly ? "transparent" : "hsl(var(--input))",
-                            },
-                            padding: "2px",
-                          }),
-                          singleValue: (base) => ({
-                            ...base,
-                            color: readOnly ? "#000000" : "black",
-                          }),
-                          menu: (base) => ({
-                            ...base,
-                            backgroundColor: "white",
-                            zIndex: 50,
-                          }),
-                          option: (base, state) => ({
-                            ...base,
-                            backgroundColor: state.isSelected
-                              ? "hsl(var(--primary))"
-                              : state.isFocused
-                                ? "hsl(var(--accent))"
-                                : "white",
-                            color: state.isSelected ? "white" : "black",
-                            "&:hover": {
-                              backgroundColor: state.isSelected ? "hsl(var(--primary))" : "hsl(var(--accent))",
-                            },
-                          }),
-                        }}
-                      />
-                    )}
-                  </div>
+                          },
+                          padding: "2px",
+                        }),
+                        singleValue: (base) => ({
+                          ...base,
+                          color: readOnly ? "#000000" : "black",
+                        }),
+                        menu: (base) => ({
+                          ...base,
+                          backgroundColor: "white",
+                          zIndex: 50,
+                        }),
+                        option: (base, state) => ({
+                          ...base,
+                          backgroundColor: state.isSelected
+                            ? "hsl(var(--primary))"
+                            : state.isFocused
+                              ? "hsl(var(--accent))"
+                              : "white",
+                          color: state.isSelected ? "white" : "black",
+                          "&:hover": {
+                            backgroundColor: state.isSelected ? "hsl(var(--primary))" : "hsl(var(--accent))",
+                          },
+                        }),
+                      }}
+                    />
+                  )}
                 </div>
+              </div>
 
                 <div className="space-y-2">
                   <Label htmlFor="respuesta">Fecha de Respuesta</Label>
