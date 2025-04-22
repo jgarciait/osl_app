@@ -291,13 +291,11 @@ export function InvitationsManagement() {
       // Generar nuevo código de invitación
       const newCode = generateInvitationCode()
 
-      // Actualizar la invitación con el nuevo código
+      // Actualizar la invitación con el nuevo código - sin updated_at ni updated_by
       const { error } = await supabase
         .from("invitations")
         .update({
           invitation_code: newCode,
-          updated_at: new Date().toISOString(),
-          updated_by: currentUser.id, // Añadir el ID del usuario que actualiza
         })
         .eq("id", invitation.id)
 
