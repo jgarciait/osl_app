@@ -347,6 +347,49 @@ export interface Database {
         }
         Relationships: []
       }
+      bug_reports: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          description: string
+          status: string
+          priority: string
+          screenshot_url: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          description: string
+          status?: string
+          priority?: string
+          screenshot_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          description?: string
+          status?: string
+          priority?: string
+          screenshot_url?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_reports_user_id_fkey"
+            columns: ["user_id"]
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_: string]: {

@@ -6,7 +6,7 @@ import Link from "next/link"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { FileText, Landmark, Settings, LogOut, Home, BarChart, Tag, BookOpen, UserCog, Folder } from "lucide-react"
+import { FileText, Landmark, Settings, LogOut, Home, BarChart, Tag, BookOpen, UserCog, Folder, Bug } from "lucide-react"
 import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -105,7 +105,7 @@ export function AppSidebar() {
     }
   }
 
-  // Actualizar el array navItems para incluir el enlace a clasificaciones
+  // Actualizar el array navItems para incluir el enlace a clasificaciones y bugs
   const navItems = [
     {
       title: "Dashboard",
@@ -155,6 +155,13 @@ export function AppSidebar() {
       href: "/dashboard/reportes",
       isActive: pathname === "/dashboard/reportes",
       permission: { resource: "reports", action: "view" },
+    },
+    {
+      title: "Bugs",
+      icon: Bug,
+      href: "/dashboard/bugs",
+      isActive: pathname === "/dashboard/bugs" || pathname.startsWith("/dashboard/bugs/"),
+      // Todos los usuarios pueden reportar bugs
     },
     {
       title: "Configuración",
