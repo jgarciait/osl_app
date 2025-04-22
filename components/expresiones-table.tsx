@@ -14,7 +14,18 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table"
-import { MoreHorizontal, Edit, Trash, UserPlus, Loader2, Filter, FilterX, FileDown, Eye } from "lucide-react"
+import {
+  MoreHorizontal,
+  Edit,
+  Trash,
+  UserPlus,
+  Loader2,
+  Filter,
+  FilterX,
+  FileDown,
+  Eye,
+  ArrowUpDown,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTable } from "@/components/data-table/data-table"
@@ -89,7 +100,12 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
   const canManageExpressions = hasPermission("expressions", "manage")
   const canViewExpressions = hasPermission("expressions", "view")
 
-  const [sorting, setSorting] = useState<SortingState>([])
+  const [sorting, setSorting] = useState<SortingState>([
+    {
+      id: "numero",
+      desc: true,
+    },
+  ])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
     {
       id: "estado",
@@ -251,7 +267,18 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       },
       {
         accessorKey: "numero",
-        header: "Número",
+        header: ({ column }) => {
+          return (
+            <Button
+              variant="ghost"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+              className="px-0"
+            >
+              Número
+              <ArrowUpDown className="ml-2 h-4 w-4" />
+            </Button>
+          )
+        },
       },
       {
         accessorKey: "nombre",
