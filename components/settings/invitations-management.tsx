@@ -1,7 +1,6 @@
 "use client"
 
 import { DialogTrigger } from "@/components/ui/dialog"
-import { MultiSelect } from "@/components/ui/multi-select"
 
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
@@ -231,6 +230,7 @@ export function InvitationsManagement() {
       if (invitationError) throw invitationError
 
       // Si hay grupos seleccionados, mostrar un mensaje informativo
+      /*
       if (formData.groups && formData.groups.length > 0) {
         console.log("Grupos seleccionados:", formData.groups)
         // Aquí podríamos guardar esta información en otra tabla o mostrar un mensaje
@@ -241,6 +241,7 @@ export function InvitationsManagement() {
           duration: 5000,
         })
       }
+      */
 
       toast({
         title: "Invitación creada",
@@ -384,27 +385,7 @@ export function InvitationsManagement() {
 
   // Función para renderizar los grupos (modificada para manejar el caso donde no hay grupos)
   const renderGroups = (invitation) => {
-    // Si la invitación no tiene la propiedad groups o está vacía
-    if (!invitation.groups || !Array.isArray(invitation.groups) || invitation.groups.length === 0) {
-      return <span className="text-gray-500">Sin grupos</span>
-    }
-
-    // Si tiene grupos, renderizarlos
-    return (
-      <div className="flex flex-wrap gap-1">
-        {invitation.groups.map((groupId) => {
-          const group = availableGroups.find((g) => g.id === groupId)
-          return group ? (
-            <span
-              key={groupId}
-              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-            >
-              {group.name}
-            </span>
-          ) : null
-        })}
-      </div>
-    )
+    return <span className="text-gray-500">Sin grupos</span>
   }
 
   return (
@@ -475,6 +456,7 @@ export function InvitationsManagement() {
                     className="col-span-3"
                   />
                 </div>
+                {/* Sección de grupos oculta
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label htmlFor="groups" className="text-right">
                     Grupos
@@ -490,11 +472,11 @@ export function InvitationsManagement() {
                       placeholder="Seleccione grupos"
                     />
                     <p className="text-xs text-amber-600 mt-1">
-                      Nota: Los grupos seleccionados no se guardarán hasta que se actualice la estructura de la base de
-                      datos.
+                      Nota: Los grupos seleccionados no se guardarán hasta que se actualice la estructura de la base de datos.
                     </p>
                   </div>
                 </div>
+                */}
               </div>
               <DialogFooter>
                 <Button

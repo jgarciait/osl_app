@@ -1072,7 +1072,7 @@ export function ExpresionForm({
                         )}
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
+                    <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4}>
                       <Calendar
                         mode="single"
                         selected={formData.fecha_recibido}
@@ -1219,7 +1219,7 @@ export function ExpresionForm({
                       )}
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
+                  <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4}>
                     <Calendar
                       mode="single"
                       selected={formData.respuesta}
