@@ -917,90 +917,126 @@ export function ExpresionForm({
               <CardDescription>Datos básicos de la expresión ciudadana</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Tema - Ahora es el primer campo */}
-              <div className="space-y-2">
-                <Label>Tema</Label>
-                <div className="relative">
-                  {typeof window !== "undefined" && (
-                    <ReactSelect
-                      name="tema"
-                      placeholder="Seleccionar tema..."
-                      className="w-full"
-                      classNamePrefix="select"
-                      options={temas.map((tema) => ({
-                        value: tema.id,
-                        label: `${tema.nombre} (${tema.abreviatura || "Sin abreviatura"})`,
-                        data: {
-                          nombre: tema.nombre,
-                          abreviatura: tema.abreviatura,
-                        },
-                      }))}
-                      value={
-                        selectedTema
-                          ? {
-                              value: selectedTema,
-                              label: temas.find((t) => t.id === selectedTema)
-                                ? `${temas.find((t) => t.id === selectedTema).nombre} (${
-                                    temas.find((t) => t.id === selectedTema).abreviatura || "Sin abreviatura"
-                                  })`
-                                : selectedTema,
-                            }
-                          : null
-                      }
-                      onChange={handleTemaChange}
-                      isSearchable={true}
-                      isClearable={true}
-                      isDisabled={readOnly}
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          backgroundColor: readOnly ? "#f3f4f6" : "white",
-                          borderColor: readOnly ? "transparent" : "hsl(var(--input))",
-                          "&:hover": {
+              {/* Primera fila: Tema, Clasificación y Fecha Recibido */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                {/* Tema */}
+                <div className="space-y-2">
+                  <Label>Tema</Label>
+                  <div className="relative">
+                    {typeof window !== "undefined" && (
+                      <ReactSelect
+                        name="tema"
+                        placeholder="Seleccionar tema..."
+                        className="w-full"
+                        classNamePrefix="select"
+                        options={temas.map((tema) => ({
+                          value: tema.id,
+                          label: `${tema.nombre} (${tema.abreviatura || "Sin abreviatura"})`,
+                          data: {
+                            nombre: tema.nombre,
+                            abreviatura: tema.abreviatura,
+                          },
+                        }))}
+                        value={
+                          selectedTema
+                            ? {
+                                value: selectedTema,
+                                label: temas.find((t) => t.id === selectedTema)
+                                  ? `${temas.find((t) => t.id === selectedTema).nombre} (${
+                                      temas.find((t) => t.id === selectedTema).abreviatura || "Sin abreviatura"
+                                    })`
+                                  : selectedTema,
+                              }
+                            : null
+                        }
+                        onChange={handleTemaChange}
+                        isSearchable={true}
+                        isClearable={true}
+                        isDisabled={readOnly}
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            backgroundColor: readOnly ? "#f3f4f6" : "white",
                             borderColor: readOnly ? "transparent" : "hsl(var(--input))",
-                          },
-                          padding: "2px",
-                        }),
-                        singleValue: (base) => ({
-                          ...base,
-                          color: readOnly ? "#000000" : "black",
-                        }),
-                        menu: (base) => ({
-                          ...base,
-                          backgroundColor: "white",
-                          zIndex: 50,
-                        }),
-                        option: (base, state) => ({
-                          ...base,
-                          backgroundColor: state.isSelected
-                            ? "hsl(var(--primary))"
-                            : state.isFocused
-                              ? "hsl(var(--accent))"
-                              : "white",
-                          color: state.isSelected ? "white" : "black",
-                          "&:hover": {
-                            backgroundColor: state.isSelected ? "hsl(var(--primary))" : "hsl(var(--accent))",
-                          },
-                        }),
-                      }}
-                    />
-                  )}
+                            "&:hover": {
+                              borderColor: readOnly ? "transparent" : "hsl(var(--input))",
+                            },
+                            padding: "2px",
+                          }),
+                          singleValue: (base) => ({
+                            ...base,
+                            color: readOnly ? "#000000" : "black",
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            backgroundColor: "white",
+                            zIndex: 50,
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "hsl(var(--primary))"
+                              : state.isFocused
+                                ? "hsl(var(--accent))"
+                                : "white",
+                            color: state.isSelected ? "white" : "black",
+                            "&:hover": {
+                              backgroundColor: state.isSelected ? "hsl(var(--primary))" : "hsl(var(--accent))",
+                            },
+                          }),
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Clasificación */}
+                <div className="space-y-2">
+                  <Label>Clasificación</Label>
+                  <MultiSelect
+                    options={clasificacionesOptions}
+                    selected={selectedClasificaciones}
+                    onChange={handleClasificacionesChange}
+                    placeholder="Seleccionar clasificaciones..."
+                    disabled={readOnly}
+                    className={readOnly ? "bg-[#f3f4f6] text-black" : ""}
+                  />
+                </div>
+
+                {/* Fecha Recibido - Movido a la primera fila */}
+                <div className="space-y-2">
+                  <Label htmlFor="fecha_recibido">Fecha Recibido</Label>
+                  <Popover disabled={readOnly}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${
+                          readOnly ? "bg-[#f3f4f6] text-black border-0" : ""
+                        }`}
+                        disabled={readOnly}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.fecha_recibido && !isNaN(new Date(formData.fecha_recibido).getTime()) ? (
+                          format(formData.fecha_recibido, "PPP", { locale: es })
+                        ) : (
+                          <span>Seleccione fecha</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4}>
+                      <Calendar
+                        mode="single"
+                        selected={formData.fecha_recibido}
+                        onSelect={(date) => handleDateChange(date)}
+                        initialFocus
+                        disabled={readOnly}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
 
-              {/* Clasificación - Añadido justo después del tema */}
-              <div className="space-y-2 mt-4">
-                <Label>Clasificación</Label>
-                <MultiSelect
-                  options={clasificacionesOptions}
-                  selected={selectedClasificaciones}
-                  onChange={handleClasificacionesChange}
-                  placeholder="Seleccionar clasificaciones..."
-                  disabled={readOnly}
-                  className={readOnly ? "bg-[#f3f4f6] text-black" : ""}
-                />
-              </div>
-
+              {/* Segunda fila: Año, Mes y Número */}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div className="space-y-2">
                   <Label htmlFor="ano">Año</Label>
@@ -1052,38 +1088,8 @@ export function ExpresionForm({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="space-y-2">
-                  <Label htmlFor="fecha_recibido">Fecha Recibido</Label>
-                  <Popover disabled={readOnly}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className={`w-full justify-start text-left font-normal ${
-                          readOnly ? "bg-[#f3f4f6] text-black border-0" : ""
-                        }`}
-                        disabled={readOnly}
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.fecha_recibido && !isNaN(new Date(formData.fecha_recibido).getTime()) ? (
-                          format(formData.fecha_recibido, "PPP", { locale: es })
-                        ) : (
-                          <span>Seleccione fecha</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4}>
-                      <Calendar
-                        mode="single"
-                        selected={formData.fecha_recibido}
-                        onSelect={(date) => handleDateChange(date)}
-                        initialFocus
-                        disabled={readOnly}
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
+              {/* Tercera fila: Nombre y Email */}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="nombre">Nombre</Label>
                   <Input
@@ -1133,102 +1139,107 @@ export function ExpresionForm({
               <CardDescription>Información sobre el trámite y respuesta a la expresión</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Referidos</Label>
-                <div className="relative">
-                  {typeof window !== "undefined" && (
-                    <ReactSelect
-                      isMulti
-                      name="comites"
-                      placeholder="Seleccionar comités..."
-                      className="w-full"
-                      classNamePrefix="select"
-                      options={comitesOptions.map((comite) => ({
-                        value: comite.value,
-                        label: comite.label,
-                      }))}
-                      value={
-                        selectedComites
-                          ? comitesOptions
-                              .filter((comite) => selectedComites.includes(comite.value))
-                              .map((comite) => ({
-                                value: comite.value,
-                                label: comite.label,
-                              }))
-                          : null
-                      }
-                      onChange={(selectedOptions) => {
-                        const selectedValues = selectedOptions ? selectedOptions.map((option) => option.value) : []
-                        handleComitesChange(selectedValues)
-                      }}
-                      isSearchable={true}
-                      isDisabled={readOnly}
-                      styles={{
-                        control: (base) => ({
-                          ...base,
-                          backgroundColor: readOnly ? "#f3f4f6" : "white",
-                          borderColor: readOnly ? "transparent" : "hsl(var(--input))",
-                          "&:hover": {
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Referidos</Label>
+                  <div className="relative">
+                    {typeof window !== "undefined" && (
+                      <ReactSelect
+                        name="comites"
+                        placeholder="Seleccionar comités..."
+                        className="w-full"
+                        classNamePrefix="select"
+                        options={comitesOptions.map((comite) => ({
+                          value: comite.value,
+                          label: `${comite.nombre} (${comite.tipo === "senado" ? "Senado" : "Cámara"})`,
+                          data: {
+                            nombre: comite.nombre,
+                            abreviatura: comite.abreviatura,
+                          },
+                        }))}
+                        value={
+                          selectedComites
+                            ? comitesOptions
+                                .filter((comite) => selectedComites.includes(comite.value))
+                                .map((comite) => ({
+                                  value: comite.value,
+                                  label: comite.label,
+                                }))
+                            : null
+                        }
+                        onChange={(selectedOptions) => {
+                          const selectedValues = selectedOptions ? selectedOptions.map((option) => option.value) : []
+                          handleComitesChange(selectedValues)
+                        }}
+                        isSearchable={true}
+                        isDisabled={readOnly}
+                        styles={{
+                          control: (base) => ({
+                            ...base,
+                            backgroundColor: readOnly ? "#f3f4f6" : "white",
                             borderColor: readOnly ? "transparent" : "hsl(var(--input))",
-                          },
-                          padding: "2px",
-                        }),
-                        singleValue: (base) => ({
-                          ...base,
-                          color: readOnly ? "#000000" : "black",
-                        }),
-                        menu: (base) => ({
-                          ...base,
-                          backgroundColor: "white",
-                          zIndex: 50,
-                        }),
-                        option: (base, state) => ({
-                          ...base,
-                          backgroundColor: state.isSelected
-                            ? "hsl(var(--primary))"
-                            : state.isFocused
-                              ? "hsl(var(--accent))"
-                              : "white",
-                          color: state.isSelected ? "white" : "black",
-                          "&:hover": {
-                            backgroundColor: state.isSelected ? "hsl(var(--primary))" : "hsl(var(--accent))",
-                          },
-                        }),
-                      }}
-                    />
-                  )}
+                            "&:hover": {
+                              borderColor: readOnly ? "transparent" : "hsl(var(--input))",
+                            },
+                            padding: "2px",
+                          }),
+                          singleValue: (base) => ({
+                            ...base,
+                            color: readOnly ? "#000000" : "black",
+                          }),
+                          menu: (base) => ({
+                            ...base,
+                            backgroundColor: "white",
+                            zIndex: 50,
+                          }),
+                          option: (base, state) => ({
+                            ...base,
+                            backgroundColor: state.isSelected
+                              ? "hsl(var(--primary))"
+                              : state.isFocused
+                                ? "hsl(var(--accent))"
+                                : "white",
+                            color: state.isSelected ? "white" : "black",
+                            "&:hover": {
+                              backgroundColor: state.isSelected ? "hsl(var(--primary))" : "hsl(var(--accent))",
+                            },
+                          }),
+                        }}
+                      />
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="respuesta">Fecha de Respuesta</Label>
-                <Popover disabled={readOnly}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`w-full justify-start text-left font-normal ${
-                        readOnly ? "bg-[#f3f4f6] text-black border-0" : ""
-                      }`}
-                      disabled={readOnly}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {formData.respuesta && !isNaN(new Date(formData.respuesta).getTime()) ? (
-                        format(formData.respuesta, "PPP", { locale: es })
-                      ) : (
-                        <span>Sin respuesta</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4}>
-                    <Calendar
-                      mode="single"
-                      selected={formData.respuesta}
-                      onSelect={(date) => handleDateChange(date, "respuesta")}
-                      initialFocus
-                      disabled={readOnly}
-                    />
-                  </PopoverContent>
-                </Popover>
+                <div className="space-y-2">
+                  <Label htmlFor="respuesta">Fecha de Respuesta</Label>
+                  <Popover disabled={readOnly}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal ${
+                          readOnly ? "bg-[#f3f4f6] text-black border-0" : ""
+                        }`}
+                        disabled={readOnly}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formData.respuesta && !isNaN(new Date(formData.respuesta).getTime()) ? (
+                          format(formData.respuesta, "PPP", { locale: es })
+                        ) : (
+                          <span>Sin respuesta</span>
+                        )}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start" side="bottom" sideOffset={4}>
+                      <Calendar
+                        mode="single"
+                        selected={formData.respuesta}
+                        onSelect={(date) => handleDateChange(date, "respuesta")}
+                        initialFocus
+                        disabled={readOnly}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
 
               <div className="space-y-2">
