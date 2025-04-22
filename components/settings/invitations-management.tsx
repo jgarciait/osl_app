@@ -213,7 +213,7 @@ export function InvitationsManagement() {
       // Generar código de invitación
       const invitationCode = generateInvitationCode()
 
-      // Crear invitación en la base de datos
+      // Crear invitación en la base de datos - omitiendo el campo groups
       const { data: invitation, error: invitationError } = await supabase
         .from("invitations")
         .insert({
@@ -221,7 +221,6 @@ export function InvitationsManagement() {
           nombre: formData.nombre,
           apellido: formData.apellido,
           invitation_code: invitationCode,
-          groups: formData.groups, // Guardar los grupos seleccionados
           created_by: currentUser.id,
           expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           status: "pending",
@@ -230,6 +229,18 @@ export function InvitationsManagement() {
         .single()
 
       if (invitationError) throw invitationError
+
+      // Si hay grupos seleccionados, mostrar un mensaje informativo
+      if (formData.groups && formData.groups.length > 0) {
+        console.log("Grupos seleccionados:", formData.groups)
+        // Aquí podríamos guardar esta información en otra tabla o mostrar un mensaje
+        toast({
+          title: "Información sobre grupos",
+          description:
+            "Los grupos seleccionados no se guardarán hasta que se actualice la estructura de la base de datos.",
+          duration: 5000,
+        })
+      }
 
       toast({
         title: "Invitación creada",
@@ -373,6 +384,31 @@ export function InvitationsManagement() {
     }
   }
 
+  // Función para renderizar los grupos (modificada para manejar el caso donde no hay grupos)
+  const renderGroups = (invitation) => {
+    // Si la invitación no tiene la propiedad groups o está vacía
+    if (!invitation.groups || !Array.isArray(invitation.groups) || invitation.groups.length === 0) {
+      return <span className="text-gray-500">Sin grupos</span>
+    }
+
+    // Si tiene grupos, renderizarlos
+    return (
+      <div className="flex flex-wrap gap-1">
+        {invitation.groups.map((groupId) => {
+          const group = availableGroups.find((g) => g.id === groupId)
+          return group ? (
+            <span
+              key={groupId}
+              className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+            >
+              {group.name}
+            </span>
+          ) : null
+        })}
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row justify-between gap-4">
@@ -455,6 +491,10 @@ export function InvitationsManagement() {
                       onChange={(selected) => setFormData((prev) => ({ ...prev, groups: selected }))}
                       placeholder="Seleccione grupos"
                     />
+                    <p className="text-xs text-amber-600 mt-1">
+                      Nota: Los grupos seleccionados no se guardarán hasta que se actualice la estructura de la base de
+                      datos.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -535,25 +575,7 @@ export function InvitationsManagement() {
                     <tr key={invitation.id} className="border-b hover:bg-gray-50">
                       <td className="p-3">{invitation.email}</td>
                       <td className="p-3">{`${invitation.nombre} ${invitation.apellido || ""}`}</td>
-                      <td className="p-3">
-                        {invitation.groups && invitation.groups.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {invitation.groups.map((groupId) => {
-                              const group = availableGroups.find((g) => g.id === groupId)
-                              return group ? (
-                                <span
-                                  key={groupId}
-                                  className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-                                >
-                                  {group.name}
-                                </span>
-                              ) : null
-                            })}
-                          </div>
-                        ) : (
-                          <span className="text-gray-500">Sin grupos</span>
-                        )}
-                      </td>
+                      <td className="p-3">{renderGroups(invitation)}</td>
                       <td className="p-3">{invitation.status}</td>
                       <td className="p-3">
                         <DropdownMenu>

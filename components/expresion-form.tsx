@@ -954,12 +954,16 @@ export function ExpresionForm({
                       styles={{
                         control: (base) => ({
                           ...base,
-                          backgroundColor: "white",
-                          borderColor: "hsl(var(--input))",
+                          backgroundColor: readOnly ? "#f3f4f6" : "white",
+                          borderColor: readOnly ? "transparent" : "hsl(var(--input))",
                           "&:hover": {
-                            borderColor: "hsl(var(--input))",
+                            borderColor: readOnly ? "transparent" : "hsl(var(--input))",
                           },
                           padding: "2px",
+                        }),
+                        singleValue: (base) => ({
+                          ...base,
+                          color: readOnly ? "#000000" : "black",
                         }),
                         menu: (base) => ({
                           ...base,
@@ -993,6 +997,7 @@ export function ExpresionForm({
                   onChange={handleClasificacionesChange}
                   placeholder="Seleccionar clasificaciones..."
                   disabled={readOnly}
+                  className={readOnly ? "bg-[#f3f4f6] text-black" : ""}
                 />
               </div>
 
@@ -1003,6 +1008,7 @@ export function ExpresionForm({
                     value={selectedYear.toString()}
                     onValueChange={handleYearChange}
                     disabled={isEditing || readOnly}
+                    className={readOnly ? "bg-[#f3f4f6]" : ""}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione año" />
@@ -1023,6 +1029,7 @@ export function ExpresionForm({
                     value={formData.mes.toString()}
                     onValueChange={(value) => setFormData((prev) => ({ ...prev, mes: Number.parseInt(value, 10) }))}
                     disabled={readOnly}
+                    className={readOnly ? "bg-[#f3f4f6]" : ""}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Seleccione mes" />
@@ -1052,7 +1059,9 @@ export function ExpresionForm({
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full justify-start text-left font-normal"
+                        className={`w-full justify-start text-left font-normal ${
+                          readOnly ? "bg-[#f3f4f6] text-black border-0" : ""
+                        }`}
                         disabled={readOnly}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4" />
@@ -1084,6 +1093,7 @@ export function ExpresionForm({
                     onChange={handleInputChange}
                     required
                     disabled={readOnly}
+                    style={readOnly ? { backgroundColor: "#f3f4f6", color: "#000000" } : {}}
                   />
                 </div>
 
@@ -1097,6 +1107,7 @@ export function ExpresionForm({
                     onChange={handleInputChange}
                     required
                     disabled={readOnly}
+                    style={readOnly ? { backgroundColor: "#f3f4f6", color: "#000000" } : {}}
                   />
                 </div>
               </div>
@@ -1108,6 +1119,7 @@ export function ExpresionForm({
                   onChange={handleEditorChange}
                   placeholder="Escriba aquí la propuesta o resumen..."
                   readOnly={readOnly}
+                  className={readOnly ? "bg-[#f3f4f6]" : ""}
                 />
               </div>
             </CardContent>
@@ -1154,12 +1166,16 @@ export function ExpresionForm({
                       styles={{
                         control: (base) => ({
                           ...base,
-                          backgroundColor: "white",
-                          borderColor: "hsl(var(--input))",
+                          backgroundColor: readOnly ? "#f3f4f6" : "white",
+                          borderColor: readOnly ? "transparent" : "hsl(var(--input))",
                           "&:hover": {
-                            borderColor: "hsl(var(--input))",
+                            borderColor: readOnly ? "transparent" : "hsl(var(--input))",
                           },
                           padding: "2px",
+                        }),
+                        singleValue: (base) => ({
+                          ...base,
+                          color: readOnly ? "#000000" : "black",
                         }),
                         menu: (base) => ({
                           ...base,
@@ -1190,7 +1206,9 @@ export function ExpresionForm({
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
-                      className="w-full justify-start text-left font-normal"
+                      className={`w-full justify-start text-left font-normal ${
+                        readOnly ? "bg-[#f3f4f6] text-black border-0" : ""
+                      }`}
                       disabled={readOnly}
                     >
                       <CalendarIcon className="mr-2 h-4 w-4" />
@@ -1222,6 +1240,7 @@ export function ExpresionForm({
                   onChange={handleInputChange}
                   rows={3}
                   disabled={readOnly}
+                  style={readOnly ? { backgroundColor: "#f3f4f6" } : {}}
                 />
               </div>
 
@@ -1232,7 +1251,9 @@ export function ExpresionForm({
                   name="archivado"
                   checked={formData.archivado}
                   onChange={(e) => setFormData((prev) => ({ ...prev, archivado: e.target.checked }))}
-                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                  className={`h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 ${
+                    readOnly ? "bg-[#f3f4f6]" : ""
+                  }`}
                   disabled={readOnly}
                 />
                 <Label htmlFor="archivado" className="text-sm font-medium text-gray-700">
