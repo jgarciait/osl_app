@@ -243,7 +243,7 @@ export function InteractiveGraph() {
         <div className="flex justify-between items-center">
           <div>
             <CardTitle>Vista de Grafo Interactivo</CardTitle>
-            <CardDescription>Explora las conexiones entre expresiones, personas, temas y comités</CardDescription>
+            <CardDescription>Explora las conexiones entre expresiones, personas y referidos</CardDescription>
           </div>
           <div className="flex items-center gap-2">
             <Select value={filter} onValueChange={setFilter}>
@@ -253,9 +253,9 @@ export function InteractiveGraph() {
               <SelectContent>
                 <SelectItem value="all">Todos los nodos</SelectItem>
                 <SelectItem value="persona">Personas</SelectItem>
-                <SelectItem value="tema">Temas</SelectItem>
+            
                 <SelectItem value="comite">Comités</SelectItem>
-                <SelectItem value="etiqueta">Etiquetas</SelectItem>
+               
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={handleZoomIn}>
