@@ -1589,25 +1589,156 @@ export function ExpresionForm({
         </TabsContent>
       </Tabs>
 
-      <div className="flex justify-between">
-        <Button type="button" variant="outline" onClick={() => router.push("/dashboard/expresiones")}>
-          Regresar
-        </Button>
-        {(activeTab !== "documentos" || isEditing) && !readOnly && (
-          <Button type="submit" disabled={isSubmitting} className="bg-[#1a365d] hover:bg-[#15294d]">
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {isEditing ? "Actualizando..." : "Guardando..."}
-              </>
-            ) : isEditing ? (
-              "Actualizar Expresión"
-            ) : (
-              "Guardar Expresión"
-            )}
-          </Button>
+<div className="flex justify-between">
+  <Button type="button" variant="outline" onClick={() => router.push("/dashboard/expresiones")}>
+    Regresar
+  </Button>
+  
+  {(activeTab !== "documentos" || isEditing) && !readOnly && (
+    <div className="flex space-x-2">
+      {/* Botón Guardar */}
+      <Button type="submit" disabled={isSubmitting} className="bg-[#1a365d] hover:bg-[#15294d]">
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            {isEditing ? "Actualizando..." : "Guardando..."}
+          </>
+        ) : (
+          "Guardar"
         )}
-      </div>
+      </Button>
+      
+      {/* Botón Guardar y Salir */}
+      <Button 
+        type="button" 
+        disabled={isSubmitting} 
+        className="bg-[#2a4a7d] hover:bg-[#1e3a6d]"
+        onClick={async (e) => {
+          e.preventDefault();
+          setIsSubmitting(true);
+          
+          try {
+            // Validar campos requeridos
+            if (!formData.nombre || !formData.tema) {
+              toast({
+                title: "Error",
+                description: "Por favor complete todos los campos requeridos",
+                variant: "destructive",
+              });
+              setIsSubmitting(false);
+              return;
+            }
+            
+            // Preparar datos para enviar (mismo código que en handleSubmit)
+            let dataToSubmit = {
+              ...formData,
+              fecha_recibido: formData.fecha_recibido && !isNaN(new Date(formData.fecha_recibido).getTime())
+                ? formatDateToISO(formData.fecha_recibido)
+                : null,
+              respuesta: formData.respuesta && !isNaN(new Date(formData.respuesta).getTime())
+                ? formatDateToISO(formData.respuesta)
+                : null,
+            };
+            
+            let expresionId;
+            
+            if (isEditing && expresion?.id) {
+              // Actualizar expresión existente
+              const { error } = await supabase.from("expresiones").update(dataToSubmit).eq("id", expresion.id);
+              if (error) throw error;
+              expresionId = expresion.id;
+              
+              // Actualizar relaciones con comités
+              await supabase.from("expresion_comites").delete().eq("expresion_id", expresion.id);
+              for (const comiteId of selectedComites) {
+                await supabase.from("expresion_comites").insert({
+                  expresion_id: expresion.id,
+                  comite_id: comiteId,
+                });
+              }
+              
+              // Actualizar relaciones con clasificaciones
+              await supabase.from("expresion_clasificaciones").delete().eq("expresion_id", expresion.id);
+              for (const clasificacionId of selectedClasificaciones) {
+                await supabase.from("expresion_clasificaciones").insert({
+                  expresion_id: expresion.id,
+                  clasificacion_id: clasificacionId,
+                });
+              }
+            } else {
+              // Crear nueva expresión
+              const secuenciaActual = await getNextSequenceNumber();
+              const temaSeleccionado = temas.find((tema) => tema.id === selectedTema);
+              const abreviatura = temaSeleccionado?.abreviatura || "RNAR";
+              const numeroExpresion = generateExpressionNumber(selectedYear, secuenciaActual, abreviatura);
+              
+              dataToSubmit = {
+                ...dataToSubmit,
+                sequence: secuenciaActual,
+                numero: numeroExpresion,
+              };
+              
+              const { data, error } = await supabase.from("expresiones").insert(dataToSubmit).select();
+              if (error) throw error;
+              expresionId = data[0].id;
+              
+              // Crear relaciones con comités
+              for (const comiteId of selectedComites) {
+                await supabase.from("expresion_comites").insert({
+                  expresion_id: data[0].id,
+                  comite_id: comiteId,
+                });
+              }
+              
+              // Crear relaciones con clasificaciones
+              for (const clasificacionId of selectedClasificaciones) {
+                await supabase.from("expresion_clasificaciones").insert({
+                  expresion_id: data[0].id,
+                  clasificacion_id: clasificacionId,
+                });
+              }
+            }
+            
+            // Subir archivos si hay alguno
+            if (files.length > 0) {
+              const filesNeedingUpload = files.some((_, index) => uploadProgress[index] !== 100);
+              if (filesNeedingUpload) {
+                await uploadFiles(expresionId);
+              }
+            }
+            
+            toast({
+              title: isEditing ? "Expresión actualizada" : "Expresión creada",
+              description: "La expresión ha sido guardada exitosamente",
+            });
+            
+            // Redirigir a la lista de expresiones
+            router.push("/dashboard/expresiones");
+            
+          } catch (error) {
+            console.error("Error saving expression:", error);
+            toast({
+              variant: "destructive",
+              title: "Error al guardar",
+              description: error.message || "Ocurrió un error al guardar la expresión",
+            });
+          } finally {
+            setIsSubmitting(false);
+          }
+        }}
+      >
+        {isSubmitting ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            "Guardando..."
+          </>
+        ) : (
+          "Guardar y Salir"
+        )}
+      </Button>
+    </div>
+  )}
+</div>
       <Dialog open={pdfViewerOpen} onOpenChange={setPdfViewerOpen}>
         <DialogContent className="max-w-4xl h-[80vh]">
           <div className="w-full h-full">

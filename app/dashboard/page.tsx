@@ -19,7 +19,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4">
       <Card className="h-full">
-        <CardContent className="w-full">
+        <CardContent className="w-full h-full">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="grid grid-cols-2 gap-2">
               <TabsTrigger value="charts">Gráficos</TabsTrigger>

@@ -246,7 +246,7 @@ export function InteractiveGraph() {
 
   /* ---------- render ---------- */
   return (
-    <Card className="flex flex-col h-screen overflow-hidden">
+    <Card className="flex flex-col h-full overflow-hidden">
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
