@@ -63,16 +63,17 @@
     "@tiptap/core": "latest",
     "jspdf": "latest",
     "@supabase/ssr": "latest",
-    "@tanstack/react-table": "latest",
     "@tiptap/react": "latest",
     "@tiptap/starter-kit": "latest",
     "@tiptap/extension-placeholder": "latest",
+    "@tanstack/react-table": "latest",
     "jspdf-autotable": "latest",
     "@supabase/auth-helpers-nextjs": "latest",
     "xlsx": "latest",
     "react-select": "latest",
     "react-colorful": "latest",
-    "@radix-ui/react-icons": "latest"
+    "@radix-ui/react-icons": "latest",
+    "react-force-graph-2d": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

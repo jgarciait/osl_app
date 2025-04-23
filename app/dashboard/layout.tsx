@@ -13,11 +13,11 @@ export default function DashboardLayout({
     <GroupPermissionsProvider>
       <SidebarProvider>
         <ProtectedRoute>
-          <div className="flex h-screen overflow-hidden">
+          <div className="flex h-screen overflow-auto w-full">
             <AppSidebar />
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 w-full">
               <DashboardHeader />
-              <main className="p-4 md:p-6 w-full">{children}</main>
+              <main className="p-4 md:p-6 overflow-auto w-full">{children}</main>
             </div>
           </div>
         </ProtectedRoute>
