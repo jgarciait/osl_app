@@ -75,7 +75,7 @@ export default function ExpresionesPage() {
             tema
           `)
           .order("created_at", { ascending: false })
-          .limit(50) // Añadir un límite para evitar cargar demasiados datos
+        // Removed limit to fetch all expressions
 
         if (error) {
           console.error("Error al obtener expresiones:", error)
