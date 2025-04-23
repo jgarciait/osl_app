@@ -995,12 +995,12 @@ export function ExpresionForm({
 
                 {/* Clasificación */}
                 <div className="space-y-2">
-                  <Label>Clasificación</Label>
+                  <Label>Notas</Label>
                   <MultiSelect
                     options={clasificacionesOptions}
                     selected={selectedClasificaciones}
                     onChange={handleClasificacionesChange}
-                    placeholder="Seleccionar clasificaciones..."
+                    placeholder="Seleccionar notas..."
                     disabled={readOnly}
                     className={readOnly ? "bg-[#f3f4f6] text-black" : ""}
                   />

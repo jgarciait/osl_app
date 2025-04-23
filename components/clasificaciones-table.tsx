@@ -147,7 +147,7 @@ export function ClasificacionesTable() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Clasificaciones</CardTitle>
+        <CardTitle>Notas</CardTitle>
         {canManageClasificaciones && (
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
@@ -158,8 +158,8 @@ export function ClasificacionesTable() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Agregar Clasificación</DialogTitle>
-                <DialogDescription>Crea una nueva clasificación para las expresiones.</DialogDescription>
+                <DialogTitle>Agregar Nota</DialogTitle>
+                <DialogDescription>Crea una nueva nota para las expresiones.</DialogDescription>
               </DialogHeader>
               <ClasificacionForm
                 onSuccess={() => {
@@ -175,10 +175,10 @@ export function ClasificacionesTable() {
         {isLoading ? (
           <div className="flex justify-center p-4">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Cargando clasificaciones...</span>
+            <span className="ml-2">Cargando notas...</span>
           </div>
         ) : clasificaciones.length === 0 ? (
-          <div className="text-center p-4 text-gray-500">No hay clasificaciones disponibles</div>
+          <div className="text-center p-4 text-gray-500">No hay notas disponibles</div>
         ) : (
           <Table>
             <TableHeader>
@@ -229,8 +229,8 @@ export function ClasificacionesTable() {
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Editar Clasificación</DialogTitle>
-              <DialogDescription>Actualiza los detalles de la clasificación.</DialogDescription>
+              <DialogTitle>Editar Nota</DialogTitle>
+              <DialogDescription>Actualiza los detalles de la nota.</DialogDescription>
             </DialogHeader>
             {selectedClasificacion && (
               <ClasificacionForm

@@ -136,7 +136,7 @@ export function AppSidebar() {
       permission: { resource: "topics", action: "view" },
     },
     {
-      title: "Clasificaciones",
+      title: "Notas",
       icon: Folder,
       href: "/dashboard/clasificaciones",
       isActive: pathname === "/dashboard/clasificaciones",
