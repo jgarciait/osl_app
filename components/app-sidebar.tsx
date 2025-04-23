@@ -6,7 +6,20 @@ import Link from "next/link"
 import { createClientClient } from "@/lib/supabase-client"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/components/ui/use-toast"
-import { FileText, Landmark, Settings, LogOut, Home, BarChart, Tag, BookOpen, UserCog, Folder, Bug } from "lucide-react"
+import {
+  FileText,
+  Landmark,
+  Settings,
+  LogOut,
+  Home,
+  BarChart,
+  Tag,
+  BookOpen,
+  UserCog,
+  Folder,
+  Bug,
+  RefreshCw,
+} from "lucide-react"
 import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
@@ -164,6 +177,13 @@ export function AppSidebar() {
       // Todos los usuarios pueden reportar bugs
     },
     {
+      title: "Updates",
+      icon: RefreshCw,
+      href: "https://www.notion.so/1d04d385c26180da9147c0310f69509a?v=1d04d385c261801a9580000ce789446b&pvs=4",
+      isActive: false,
+      isExternal: true, // Indica que es un enlace externo
+    },
+    {
       title: "Configuración",
       icon: Settings,
       href: "/dashboard/settings",
@@ -223,6 +243,17 @@ export function AppSidebar() {
                   {item.title}
                 </Link>
               </PermissionGuard>
+            ) : item.isExternal ? (
+              <a
+                key={item.href}
+                href={item.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center px-2 py-2 text-sm font-medium rounded-md text-gray-600 hover:bg-gray-100"
+              >
+                <item.icon className="mr-3 h-5 w-5" />
+                {item.title}
+              </a>
             ) : (
               <Link
                 key={item.href}
