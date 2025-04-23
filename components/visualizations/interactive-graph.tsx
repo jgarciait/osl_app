@@ -179,7 +179,7 @@ export function InteractiveGraph() {
             <ForceGraph2D
               ref={graphRef}
               width={size.w}
-              height={600}
+              height={700}
               graphData={data}
               nodeLabel={(n: any) => `${n.name} (${n.type})`}
               nodeColor={(n: any) => n.color}
