@@ -18,7 +18,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="h-full">
         <CardContent className="w-full">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className="grid grid-cols-2 gap-2">

@@ -280,7 +280,7 @@ export function InteractiveGraph() {
       </CardHeader>
 
       <CardContent className="flex-1 min-h-0 p-0">
-        <div ref={wrapperRef} className="flex-1 h-full w-full bg-gray-50 dark:bg-gray-900">
+        <div ref={wrapperRef} className="h-full w-full bg-gray-50 dark:bg-gray-900">
           {data.nodes.length > 0 && size.w && size.h ? (
             <ForceGraph2D
               ref={graphRef}
