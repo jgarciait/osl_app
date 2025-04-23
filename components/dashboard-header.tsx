@@ -1,23 +1,43 @@
 "use client"
 
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { PlusCircle, PanelLeft } from "lucide-react"
 import { useSidebarContext } from "@/components/app-sidebar"
-// Añadir la importación del hook useGroupPermissions
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
+import { useEffect, useState } from "react"
+import { createClientClient } from "@/lib/supabase-client"
 
 export function DashboardHeader() {
   const pathname = usePathname()
+  const params = useParams()
   const { toggleSidebar } = useSidebarContext()
-
-  // Añadir verificación de permisos
   const { hasPermission } = useGroupPermissions()
   const canManageExpressions = hasPermission("expressions", "manage")
-
-  // Determinar si mostrar el botón de nueva expresión (ahora también verifica permisos)
   const showNewButton = pathname === "/dashboard/expresiones" && canManageExpressions
+
+  // Estado para almacenar el número de expresión
+  const [expresionNumero, setExpresionNumero] = useState<string | null>(null)
+
+  // Verificar si estamos en la página de edición de expresión
+  const isEditingExpresion = pathname.includes("/dashboard/expresiones") && pathname.includes("/editar")
+
+  // Obtener el número de expresión cuando estamos en modo edición
+  useEffect(() => {
+    if (isEditingExpresion && params.id) {
+      const fetchExpresionNumero = async () => {
+        const supabase = createClientClient()
+        const { data, error } = await supabase.from("expresiones").select("numero").eq("id", params.id).single()
+
+        if (!error && data) {
+          setExpresionNumero(data.numero)
+        }
+      }
+
+      fetchExpresionNumero()
+    }
+  }, [isEditingExpresion, params.id])
 
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
@@ -30,7 +50,12 @@ export function DashboardHeader() {
           {pathname === "/dashboard" && "Dashboard"}
           {pathname === "/dashboard/expresiones" && "Expresiones"}
           {pathname.includes("/dashboard/expresiones/nueva") && "Nueva Expresión"}
-          {pathname.includes("/dashboard/expresiones") && pathname.includes("/editar") && "Editar Expresión"}
+          {isEditingExpresion && (
+            <span className="flex items-center">
+              Editar Expresión
+              {expresionNumero && <span className="ml-2 text-black font-bold">{expresionNumero}</span>}
+            </span>
+          )}
           {pathname === "/dashboard/comites" && "Comisiones, Senadores y Representantes"}
           {pathname === "/dashboard/temas" && "Temas"}
           {pathname === "/dashboard/etiquetas" && "Etiquetas"}
