@@ -47,7 +47,11 @@ type BugReport = {
   user_email?: string
 }
 
-export function BugReportsTable() {
+interface BugReportsTableProps {
+  statusFilter?: string[]
+}
+
+export function BugReportsTable({ statusFilter }: BugReportsTableProps) {
   const [bugReports, setBugReports] = useState<BugReport[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +69,7 @@ export function BugReportsTable() {
 
   useEffect(() => {
     fetchBugReports()
-  }, [])
+  }, [statusFilter])
 
   const fetchBugReports = async () => {
     setLoading(true)
@@ -73,11 +77,16 @@ export function BugReportsTable() {
     try {
       const supabase = createClientClient()
 
-      // Obtener los reportes de bugs
-      const { data: bugReports, error: reportsError } = await supabase
-        .from("bug_reports")
-        .select("*")
-        .order("created_at", { ascending: false })
+      // Iniciar la consulta
+      let query = supabase.from("bug_reports").select("*")
+
+      // Aplicar filtro de estatus si existe
+      if (statusFilter && statusFilter.length > 0) {
+        query = query.in("status", statusFilter)
+      }
+
+      // Ordenar y ejecutar la consulta
+      const { data: bugReports, error: reportsError } = await query.order("created_at", { ascending: false })
 
       // Y luego obtener los perfiles de usuario por separado:
       if (bugReports && !reportsError) {
@@ -224,7 +233,7 @@ export function BugReportsTable() {
     },
     {
       accessorKey: "status",
-      header: "Estado",
+      header: "Estatus",
       cell: ({ row }) => {
         const status = row.getValue("status") as string
         const variant = statusVariant[status as keyof typeof statusVariant] || "default"
@@ -271,7 +280,7 @@ export function BugReportsTable() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+              <DropdownMenuLabel>Acciones 2</DropdownMenuLabel>
               <DropdownMenuItem onClick={() => handleViewDetails(report.id)}>
                 <Eye className="mr-2 h-4 w-4" />
                 Ver detalles
@@ -280,19 +289,19 @@ export function BugReportsTable() {
                 <AlertCircle className="mr-2 h-4 w-4" />
                 Marcar como pendiente
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleUpdateStatus(report.id, "completado")}>
+              <DropdownMenuItem onClick={() => handleUpdateStatus(report.id, "resuelto")}>
                 <CheckCircle2 className="mr-2 h-4 w-4" />
-                Marcar como completado
+                Marcar como resuelto
               </DropdownMenuItem>
-              {isAdmin && (
-                <>
+              <DropdownMenuItem onClick={() => handleUpdateStatus(report.id, "cerrado")}>
+                <CheckCircle2 className="mr-2 h-4 w-4" />
+                Marcar como cerrado
+              </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => handleDelete(report.id)} className="text-red-600">
                     <Trash2 className="mr-2 h-4 w-4" />
                     Eliminar
                   </DropdownMenuItem>
-                </>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )
