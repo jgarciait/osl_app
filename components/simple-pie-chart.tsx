@@ -44,7 +44,7 @@ export function SimplePieChart({
 
   return (
     <div className="flex flex-col items-center justify-center h-full">
-      <div className="relative w-[150px] h-[150px] sm:w-[200px] sm:h-[200px]">
+      <div className="hidden relative w-[150px] h-[150px] sm:w-[200px] sm:h-[200px]">
         {segments.map((segment, index) => {
           // Calcular las coordenadas para el arco SVG
           const startAngle = segment.startAngle * (Math.PI / 180)
@@ -93,8 +93,8 @@ export function SimplePieChart({
           )
         })}
 
-        {/* Círculo central para crear efecto de donut */}
-        <div className="absolute top-1/2 left-1/2 w-[60px] h-[60px] sm:w-[80px] sm:h-[80px] bg-white rounded-full -translate-x-1/2 -translate-y-1/2 z-10"></div>
+        {/* Círculo central para crear efecto de donut - actualmente oculto */}
+        <div className="hidden absolute top-1/2 left-1/2 w-[60px] h-[60px] sm:w-[80px] sm:h-[80px] bg-white rounded-full -translate-x-1/2 -translate-y-1/2 z-10"></div>
       </div>
 
       <div className="mt-3 sm:mt-6 grid grid-cols-2 gap-x-2 sm:gap-x-4 gap-y-1 sm:gap-y-2">
