@@ -549,7 +549,7 @@ export function DashboardCharts() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 h-full">
-                  <div className="h-full overflow-auto border border-gray-200 rounded-lg p-2 sm:p-4">
+                  <div className="h-[95%] overflow-auto border border-gray-200 rounded-lg p-2 sm:p-4">
                     <div className="h-full">
                       <div className="space-y-2">
                         {temasData.map((tema, index) => (
