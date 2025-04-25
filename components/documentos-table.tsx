@@ -353,38 +353,54 @@ export function DocumentosTable({ documentos, tagMap = {} }: DocumentosTableProp
     }
   }
 
-  const handleDownloadDocument = async (doc) => {
-    try {
-      setIsLoading(true)
+const handleDownloadDocument = async (doc) => {
+  try {
+    setIsLoading(true)
 
-      // Obtener la URL pública del documento
-      const { data, error } = await supabase.storage.from("documentos").createSignedUrl(doc.ruta, 60) // URL válida por 60 segundos
+    // Obtener la URL pública del documento
+    const { data, error } = await supabase.storage.from("documentos").createSignedUrl(doc.ruta, 60)
 
-      if (error) throw error
+    if (error) throw error
 
-      // Crear un enlace para descargar el archivo
-      const link = document.createElement("a")
-      link.href = data.signedUrl
-      link.download = doc.nombre
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-
-      toast({
-        title: "Descarga iniciada",
-        description: "El documento se está descargando.",
-      })
-    } catch (error) {
-      console.error("Error al descargar el documento:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudo descargar el documento. Por favor, intente nuevamente.",
-      })
-    } finally {
-      setIsLoading(false)
+    // Usar fetch para obtener el contenido del archivo como Blob
+    const response = await fetch(data.signedUrl)
+    
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`)
     }
+    
+    // Convertir la respuesta a un Blob
+    const blob = await response.blob()
+    
+    // Crear un objeto URL para el Blob (ahora es una URL local)
+    const blobUrl = URL.createObjectURL(blob)
+    
+    // Crear un enlace para descargar el archivo
+    const link = document.createElement("a")
+    link.href = blobUrl
+    link.download = doc.nombre
+    document.body.appendChild(link)
+    link.click()
+    
+    // Limpiar
+    document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl) // Importante liberar memoria
+
+    toast({
+      title: "Descarga iniciada",
+      description: "El documento se está descargando.",
+    })
+  } catch (error) {
+    console.error("Error al descargar el documento:", error)
+    toast({
+      variant: "destructive",
+      title: "Error",
+      description: "No se pudo descargar el documento. Por favor, intente nuevamente.",
+    })
+  } finally {
+    setIsLoading(false)
   }
+}
 
   const confirmDelete = async () => {
     if (!documentToDelete) return
