@@ -181,7 +181,9 @@ export const generateExpresionPDF = async (expresion, documentos = [], comites =
     doc.setFont("helvetica", "normal")
     const fechaRespuestaText = expresion?.fecha_respuesta
       ? format(new Date(expresion.fecha_respuesta), "dd 'de' MMMM 'de' yyyy", { locale: es })
-      : "N/A"
+      : expresion?.respuesta
+        ? format(new Date(expresion.respuesta), "dd 'de' MMMM 'de' yyyy", { locale: es })
+        : "N/A"
     doc.text(fechaRespuestaText, pageWidth - margin - 30, currentY)
 
     currentY += 8

@@ -254,7 +254,7 @@ export function InteractiveGraph() {
                 <SelectItem value="all">Todos los nodos</SelectItem>
                 <SelectItem value="persona">Personas</SelectItem>
             
-                <SelectItem value="comite">Comités</SelectItem>
+                <SelectItem value="comite">Referidos</SelectItem>
                
               </SelectContent>
             </Select>

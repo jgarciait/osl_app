@@ -22,10 +22,11 @@ export function DashboardHeader() {
 
   // Verificar si estamos en la página de edición de expresión
   const isEditingExpresion = pathname.includes("/dashboard/expresiones") && pathname.includes("/editar")
+  const isViewingExpresion = pathname.includes("/dashboard/expresiones") && pathname.includes("/ver")
 
   // Obtener el número de expresión cuando estamos en modo edición
   useEffect(() => {
-    if (isEditingExpresion && params.id) {
+    if ((isEditingExpresion || isViewingExpresion) && params.id) {
       const fetchExpresionNumero = async () => {
         const supabase = createClientClient()
         const { data, error } = await supabase.from("expresiones").select("numero").eq("id", params.id).single()
@@ -37,7 +38,7 @@ export function DashboardHeader() {
 
       fetchExpresionNumero()
     }
-  }, [isEditingExpresion, params.id])
+  }, [isEditingExpresion, isViewingExpresion, params.id])
 
   return (
     <header className="bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center">
@@ -53,6 +54,12 @@ export function DashboardHeader() {
           {isEditingExpresion && (
             <span className="flex items-center">
               Editar Expresión
+              {expresionNumero && <span className="ml-2 text-black font-bold">{expresionNumero}</span>}
+            </span>
+          )}
+          {isViewingExpresion && (
+            <span className="flex items-center">
+              Ver Expresión
               {expresionNumero && <span className="ml-2 text-black font-bold">{expresionNumero}</span>}
             </span>
           )}
