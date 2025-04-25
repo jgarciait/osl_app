@@ -12,6 +12,7 @@ import {
   CheckCircleIcon,
   FilterIcon,
   DownloadIcon,
+  FileIcon,
 } from "lucide-react"
 import Image from "next/image"
 import { SimpleBarChart } from "./simple-bar-chart"
@@ -43,6 +44,7 @@ export function DashboardCharts() {
     total: 0,
     active: 0,
     archived: 0,
+    files: 0,
   })
   const [monthlyData, setMonthlyData] = useState([])
   const [comisionesData, setComisionesData] = useState([])
@@ -274,6 +276,21 @@ export function DashboardCharts() {
         // Ordenar por cantidad
         temasArray.sort((a, b) => (b.value as number) - (a.value as number))
         setTemasData(temasArray)
+
+        // Obtener el conteo de archivos en el bucket "documentos"
+        const { data: filesCount, error: filesError } = await supabase.rpc("get_storage_object_count", {
+          bucket_name: "documentos",
+        })
+
+        if (filesError) {
+          console.error("Error al obtener conteo de archivos:", filesError)
+        } else {
+          // Actualizar el estado con el conteo de archivos
+          setStats((prevStats) => ({
+            ...prevStats,
+            files: filesCount?.[0]?.total_archivos || 0,
+          }))
+        }
       } catch (error) {
         console.error("Error al cargar datos del dashboard:", error)
       } finally {
@@ -381,7 +398,7 @@ export function DashboardCharts() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2">
             <CardTitle className="text-sm font-medium">Total Expresiones</CardTitle>
@@ -428,6 +445,17 @@ export function DashboardCharts() {
               <ArrowDownIcon className="mr-1 h-3 w-3 text-gray-500" />
               <span>{archivedPercentage}% del total</span>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2">
+            <CardTitle className="text-sm font-medium">Documentos Almacenados</CardTitle>
+            <FileIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl sm:text-2xl font-bold">{stats.files}</div>
+            <p className="text-xs text-muted-foreground">Total de archivos en el sistema</p>
           </CardContent>
         </Card>
       </div>
