@@ -73,7 +73,8 @@
     "react-select": "latest",
     "react-colorful": "latest",
     "@radix-ui/react-icons": "latest",
-    "react-force-graph-2d": "latest"
+    "react-force-graph-2d": "latest",
+    "jszip": "latest"
   },
   "devDependencies": {
     "@types/node": "^22",

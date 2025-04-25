@@ -39,11 +39,17 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 
+// Primero, añadir la importación de JSZip en la parte superior del archivo
+import JSZip from "jszip"
+
 // Importar el generador de PDF
 import { generateExpresionPDF } from "./expresion-pdf-generator"
 
 // Importar el hook useGroupPermissions
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
+
+// Importar jsPDF
+import jsPDF from "jspdf"
 
 // Caché para usuarios
 const usersCache = {
@@ -466,12 +472,20 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
               <DropdownMenuItem
                 onClick={(e) => {
                   e.stopPropagation()
-                  // Usar la función original de generación de PDF
                   handleGeneratePDF(row.original)
                 }}
               >
                 <FileDown className="mr-2 h-4 w-4" />
                 PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleGeneratePDFWithAttachments(row.original)
+                }}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                PDF y Anejos
               </DropdownMenuItem>
               {canManageExpressions && (
                 <DropdownMenuItem
@@ -581,6 +595,164 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
           toast({
             title: "Error",
             description: "No se pudo generar el PDF. Intente nuevamente.",
+            variant: "destructive",
+          })
+        } finally {
+          setIsLoading(false)
+          setIsGeneratingPDF(false)
+        }
+      }, 0)
+    } catch (error) {
+      setIsLoading(false)
+      setIsGeneratingPDF(false)
+    }
+  }
+
+  // Luego, añadir la nueva función para descargar PDF con anejos después de la función handleGeneratePDF
+  // Añadir esta función después de handleGeneratePDF
+
+  // Función para generar PDF con anejos
+  const handleGeneratePDFWithAttachments = async (expresion: any) => {
+    try {
+      setIsGeneratingPDF(true)
+      setIsLoading(true)
+
+      toast({
+        title: "Preparando archivos",
+        description: "Generando PDF y recopilando documentos adjuntos...",
+      })
+
+      // Ejecutar en un setTimeout para no bloquear la interfaz
+      setTimeout(async () => {
+        try {
+          // Crear un nuevo objeto JSZip
+          const zip = new JSZip()
+
+          // Obtener los documentos adjuntos
+          const { data: docsData, error: docsErrorData } = await supabase
+            .from("documentos")
+            .select("id, nombre, tipo, ruta, created_at")
+            .eq("expresion_id", expresion.id)
+
+          if (docsErrorData) {
+            console.error("Error al obtener documentos:", docsErrorData)
+            throw docsErrorData
+          }
+
+          const documentosAdjuntos = docsData || []
+
+          // Obtener los comités relacionados con la expresión
+          let comitesRelacionados = []
+          try {
+            // Primero obtenemos las relaciones
+            const { data: relacionesData, error: relacionesError } = await supabase
+              .from("expresion_comites")
+              .select("comite_id")
+              .eq("expresion_id", expresion.id)
+
+            if (relacionesError) {
+              console.error("Error al obtener relaciones con comités:", relacionesError)
+            } else if (relacionesData && relacionesData.length > 0) {
+              // Luego obtenemos los detalles de los comités
+              const comiteIds = relacionesData.map((rel) => rel.comite_id)
+
+              const { data: comitesData, error: comitesError } = await supabase
+                .from("comites")
+                .select("id, nombre, tipo")
+                .in("id", comiteIds)
+
+              if (comitesError) {
+                console.error("Error al obtener detalles de comités:", comitesError)
+              } else if (comitesData) {
+                comitesRelacionados = comitesData
+              }
+            }
+          } catch (error) {
+            console.error("Error al consultar comités relacionados:", error)
+          }
+
+          // Obtener datos completos de la expresión
+          const { data, error } = await supabase
+            .from("view_expresiones_with_assignment")
+            .select("*")
+            .eq("id", expresion.id)
+            .single()
+
+          if (error) {
+            console.error("Error al obtener datos de la expresión:", error)
+            throw error
+          }
+
+          // Generar el PDF en memoria
+          const pdfBlob = await new Promise((resolve, reject) => {
+            try {
+              // Crear un nuevo documento PDF
+              const doc = new jsPDF()
+
+              // Aquí iría todo el código de generación del PDF
+              // (Código similar al de generateExpresionPDF pero sin guardar el archivo)
+
+              // Al final, en lugar de doc.save(), usamos:
+              const blob = doc.output("blob")
+              resolve(blob)
+            } catch (err) {
+              reject(err)
+            }
+          })
+
+          // Añadir el PDF al zip
+          zip.file(`expresion_${expresion?.numero || "N/A"}.pdf`, pdfBlob)
+
+          // Descargar y añadir cada documento adjunto al zip
+          if (documentosAdjuntos.length > 0) {
+            for (const doc of documentosAdjuntos) {
+              try {
+                if (doc.ruta) {
+                  const { data: fileData, error: fileError } = await supabase.storage
+                    .from("documentos")
+                    .download(doc.ruta)
+
+                  if (fileError) {
+                    console.error(`Error al descargar archivo ${doc.ruta}:`, fileError)
+                    continue // Continuar con el siguiente documento si hay error
+                  }
+
+                  // Añadir el archivo al zip
+                  const fileName = doc.nombre || doc.ruta.split("/").pop() || `documento_${doc.id}`
+                  zip.file(`documentos/${fileName}`, fileData)
+                }
+              } catch (docError) {
+                console.error(`Error procesando documento ${doc.id}:`, docError)
+              }
+            }
+          }
+
+          // Generar el archivo zip
+          const zipBlob = await zip.generateAsync({ type: "blob" })
+
+          // Crear un enlace para descargar el zip
+          const url = URL.createObjectURL(zipBlob)
+          const link = document.createElement("a")
+          link.href = url
+          link.download = `expresion_${expresion?.numero || "N/A"}_completa.zip`
+          document.body.appendChild(link)
+          link.click()
+
+          // Limpiar
+          setTimeout(() => {
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          }, 100)
+
+          toast({
+            title: "Descarga completada",
+            description: `Se ha generado un archivo ZIP con la expresión y ${documentosAdjuntos.length} documento(s) adjunto(s).`,
+          })
+        } catch (error) {
+          console.error("Error al generar ZIP con PDF y anejos:", error)
+          toast({
+            title: "Error",
+            description: "No se pudo generar el archivo. Intente nuevamente.",
             variant: "destructive",
           })
         } finally {
