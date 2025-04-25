@@ -197,6 +197,13 @@ export function AppSidebar() {
       isActive: pathname === "/dashboard/perfil",
       // El perfil siempre es visible para usuarios autenticados
     },
+    {
+      title: "Documentos",
+      icon: Folder,
+      href: "/dashboard/documentos",
+      isActive: pathname === "/dashboard/documentos",
+      permission: { resource: "documents", action: "view" },
+    },
   ]
 
   // En dispositivos móviles, ocultar el sidebar si no está expandido

@@ -63,6 +63,7 @@ export function DashboardHeader() {
               {expresionNumero && <span className="ml-2 text-black font-bold">{expresionNumero}</span>}
             </span>
           )}
+          {pathname === "/dashboard/documentos" && "Documentos del Sistema"}
           {pathname === "/dashboard/comites" && "Comisiones, Senadores y Representantes"}
           {pathname === "/dashboard/temas" && "Temas"}
           {pathname === "/dashboard/etiquetas" && "Etiquetas"}

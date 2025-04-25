@@ -1,5 +1,7 @@
 "use client"
 
+import { DialogTrigger } from "@/components/ui/dialog"
+
 import { useState, useEffect } from "react"
 import { createClientClient } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/use-toast"
@@ -16,7 +18,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import {
   AlertDialog,
@@ -45,6 +46,7 @@ const RESOURCES = [
   { value: "reports", label: "Reportes" },
   { value: "settings", label: "Configuración" },
   { value: "profile", label: "Perfil" },
+  { value: "documents", label: "Documentos" }, // Add this line
 ]
 
 // Acciones disponibles en el sistema

@@ -5,6 +5,8 @@ interface BarChartData {
   activas: number
   archivadas: number
   total: number
+  value: number
+  name: string
 }
 
 interface SimpleBarChartProps {
@@ -12,7 +14,8 @@ interface SimpleBarChartProps {
   height?: number
 }
 
-// Modificar la función para limitar la altura de las barras y evitar que sobresalgan
+// Modificar la función para mostrar solo los últimos 5 meses y mejorar la visualización cuando los datos están concentrados en un solo mes:
+
 export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
   if (!data || data.length === 0) {
     return (
@@ -22,8 +25,61 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
     )
   }
 
+  // Asumiendo que los datos tienen una propiedad 'fecha' o podemos inferir la fecha del nombre del mes
+  // Filtrar para mostrar solo los últimos 5 meses cronológicamente
+  const currentDate = new Date()
+  const currentMonth = currentDate.getMonth()
+  const currentYear = currentDate.getFullYear()
+
+  // Crear un mapa de nombres de meses a números
+  const monthNameToNumber = {
+    Enero: 0,
+    Febrero: 1,
+    Marzo: 2,
+    Abril: 3,
+    Mayo: 4,
+    Junio: 5,
+    Julio: 6,
+    Agosto: 7,
+    Septiembre: 8,
+    Octubre: 9,
+    Noviembre: 10,
+    Diciembre: 11,
+  }
+
+  // Función para obtener el número de mes a partir del nombre
+  const getMonthNumber = (monthName) => {
+    // Si el nombre incluye el año (ej: "Enero 2023"), extraer solo el nombre del mes
+    const cleanMonthName = monthName.split(" ")[0]
+    return monthNameToNumber[cleanMonthName] !== undefined ? monthNameToNumber[cleanMonthName] : -1
+  }
+
+  // Ordenar los datos cronológicamente (del más antiguo al más reciente)
+  const sortedData = [...data].sort((a, b) => {
+    const monthA = getMonthNumber(a.name || a.nombre)
+    const monthB = getMonthNumber(b.name || b.nombre)
+
+    // Si no podemos determinar el mes, poner al final
+    if (monthA === -1) return 1
+    if (monthB === -1) return -1
+
+    // Calcular la diferencia de meses respecto al mes actual
+    const diffA = (currentMonth - monthA + 12) % 12
+    const diffB = (currentMonth - monthB + 12) % 12
+
+    // Ordenar por cercanía al mes actual (los más recientes primero)
+    return diffA - diffB
+  })
+
+  // Tomar los últimos 5 meses (los más recientes)
+  const last5MonthsData = sortedData.slice(0, 5)
+
+  // Si todos los datos están en un solo mes, mostrar un mensaje
+  const totalDocuments = data.reduce((sum, item) => sum + item.value, 0)
+  const hasDataInMultipleMonths = data.filter((item) => item.value > 0).length > 1
+
   // Encontrar el valor máximo para escalar las barras
-  const maxValue = Math.max(...data.map((item) => Math.max(item.activas, item.archivadas)))
+  const maxValue = Math.max(...last5MonthsData.map((item) => item.value))
 
   // Calcular la escala (altura máxima de barra en píxeles)
   const maxBarHeight = height - 100 // Aumentar el espacio para evitar desbordamiento
@@ -31,14 +87,15 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
 
   return (
     <div className="w-full h-full">
-      <div className="flex justify-end mb-2 gap-2 sm:gap-4">
-        <div className="flex items-center">
-          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-[#1a365d] mr-1 sm:mr-2"></div>
-          <span className="text-xs sm:text-sm">Activas</span>
-        </div>
-        <div className="flex items-center">
-          <div className="w-2 h-2 sm:w-3 sm:h-3 bg-[#94a3b8] mr-1 sm:mr-2"></div>
-          <span className="text-xs sm:text-sm">Archivadas</span>
+      <div className="flex justify-between mb-4">
+        <div className="text-sm text-gray-500">
+          {!hasDataInMultipleMonths && totalDocuments > 0 ? (
+            <span className="text-amber-600 font-medium">
+              Todos los documentos ({totalDocuments}) fueron creados en el mismo mes
+            </span>
+          ) : (
+            <span>Mostrando los últimos 5 meses</span>
+          )}
         </div>
       </div>
 
@@ -48,63 +105,50 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
           <div className="border-t border-gray-100 absolute w-full" style={{ bottom: "25%" }}></div>
           <div className="border-t border-gray-100 absolute w-full" style={{ bottom: "50%" }}></div>
           <div className="border-t border-gray-100 absolute w-full" style={{ bottom: "75%" }}></div>
+
+          {/* Etiquetas de valores en el eje Y */}
+          {maxValue > 0 && (
+            <>
+              <div className="absolute -left-2 text-xs text-gray-500" style={{ bottom: "25%" }}>
+                {Math.round(maxValue * 0.25)}
+              </div>
+              <div className="absolute -left-2 text-xs text-gray-500" style={{ bottom: "50%" }}>
+                {Math.round(maxValue * 0.5)}
+              </div>
+              <div className="absolute -left-2 text-xs text-gray-500" style={{ bottom: "75%" }}>
+                {Math.round(maxValue * 0.75)}
+              </div>
+              <div className="absolute -left-2 text-xs text-gray-500" style={{ bottom: "100%" }}>
+                {maxValue}
+              </div>
+            </>
+          )}
         </div>
 
-        {data.map((item, index) => {
-          // Calcular el total para este item
-          const itemTotal = item.activas + item.archivadas
-          // Calcular la altura total de la barra (limitada por maxBarHeight)
-          const totalBarHeight = Math.min(itemTotal * scale, maxBarHeight)
-
-          // Calcular las proporciones
-          const activasProportion = itemTotal > 0 ? item.activas / itemTotal : 0
-          const archivadasProportion = itemTotal > 0 ? item.archivadas / itemTotal : 0
-
-          // Calcular las alturas basadas en la proporción
-          const activasHeight = totalBarHeight * activasProportion
-          const archivadasHeight = totalBarHeight * archivadasProportion
+        {last5MonthsData.map((item, index) => {
+          // Calcular la altura de la barra (limitada por maxBarHeight)
+          const barHeight = Math.max(item.value * scale, item.value > 0 ? 20 : 0) // Mínimo 20px si hay valor
 
           return (
             <div
               key={index}
-              className="flex flex-col items-center mx-0.5 sm:mx-1 w-full max-w-[40px] sm:max-w-[80px] relative z-10"
+              className="flex flex-col items-center mx-0.5 sm:mx-1 w-full max-w-[60px] sm:max-w-[100px] relative z-10"
             >
               <div className="flex flex-col w-full items-center">
-                {/* Barra combinada con degradado */}
-                <div className="relative w-6 sm:w-12 rounded-t-md overflow-hidden group">
-                  {/* Barra activas */}
-                  {item.activas > 0 && (
+                {/* Barra con valor */}
+                <div className="relative w-8 sm:w-16 rounded-t-md overflow-hidden group">
+                  {item.value > 0 && (
                     <div
                       className="w-full bg-gradient-to-t from-[#1a365d] to-[#2563eb] relative"
-                      style={{ height: `${activasHeight}px` }}
+                      style={{ height: `${barHeight}px` }}
                     >
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-white transition-opacity"></div>
                       <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black text-white text-[10px] sm:text-xs px-1 py-0.5 rounded transition-opacity whitespace-nowrap">
-                        {item.activas} activas ({Math.round(activasProportion * 100)}%)
+                        {item.value} documentos
                       </div>
-                      {/* Mostrar la cantidad en lugar de la letra */}
+                      {/* Mostrar la cantidad */}
                       <div className="absolute inset-0 flex items-center justify-center text-white text-[10px] sm:text-xs font-bold">
-                        {item.activas}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Barra archivadas (encima de activas) */}
-                  {item.archivadas > 0 && (
-                    <div
-                      className="w-full bg-gradient-to-t from-[#94a3b8] to-[#cbd5e1] relative mt-0.5"
-                      style={{
-                        height: `${archivadasHeight}px`,
-                        marginTop: item.activas > 0 ? "2px" : "0",
-                      }}
-                    >
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-white transition-opacity"></div>
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black text-white text-[10px] sm:text-xs px-1 py-0.5 rounded transition-opacity whitespace-nowrap">
-                        {item.archivadas} archivadas ({Math.round(archivadasProportion * 100)}%)
-                      </div>
-                      {/* Mostrar la cantidad en lugar de la letra */}
-                      <div className="absolute inset-0 flex items-center justify-center text-black text-[10px] sm:text-xs font-bold">
-                        {item.archivadas}
+                        {item.value}
                       </div>
                     </div>
                   )}
@@ -115,7 +159,7 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
               </div>
 
               {/* Etiqueta del mes */}
-              <div className="text-[10px] sm:text-xs mt-1 sm:mt-2 text-center font-medium">{item.nombre}</div>
+              <div className="text-[10px] sm:text-xs mt-1 sm:mt-2 text-center font-medium">{item.name}</div>
             </div>
           )
         })}
