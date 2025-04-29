@@ -95,7 +95,7 @@ export function DataTableViewOptions<TData>({ table, tableId = "default-table" }
                   saveColumnVisibility(column.id, !!value)
                 }}
               >
-                {column.id}
+                {column.id === "estado" ? "estatus" : column.id === "ano" ? "año" : column.id}
               </DropdownMenuCheckboxItem>
             )
           })}
