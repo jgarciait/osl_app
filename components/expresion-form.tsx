@@ -929,7 +929,7 @@ export function ExpresionForm({
         <TabsContent value="informacion" className="space-y-4 pt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Información de la Expresión</CardTitle>
+              <CardTitle>Expresión Ciudadana</CardTitle>
               <CardDescription>Datos básicos de la expresión ciudadana</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -1292,7 +1292,7 @@ Ingrese el número de la opción (1-${options.length}):`,
                       <ReactSelect
                         isMulti
                         name="comites"
-                        placeholder="Seleccionar comités..."
+                        placeholder="Seleccionar comisiones, legisladores u oficinas"
                         className="w-full"
                         classNamePrefix="select"
                         options={comitesOptions.map((comite) => ({
