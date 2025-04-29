@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
+import { useRouter } from "next/navigation"
+import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
 
 export default function ExpresionesPage() {
   const [expresiones, setExpresiones] = useState([])
@@ -12,6 +14,8 @@ export default function ExpresionesPage() {
   const [tagMap, setTagMap] = useState({})
   const supabase = createClientClient()
   const { toast } = useToast()
+  const router = useRouter()
+  const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
   // Añadir refs para las suscripciones
   const subscriptions = useRef([])
@@ -359,6 +363,9 @@ export default function ExpresionesPage() {
     <div className="w-full">
       <div className="flex justify-between items-center mb-6"></div>
       <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
+
+      {/* Diálogo para seleccionar números disponibles */}
+      <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
     </div>
   )
 }

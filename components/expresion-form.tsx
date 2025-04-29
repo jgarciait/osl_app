@@ -104,6 +104,7 @@ const parseISODate = (isoString) => {
   }
 }
 
+// Modificar la definición de props para incluir useAvailableNumber
 export function ExpresionForm({
   expresion,
   comites = [],
@@ -115,6 +116,7 @@ export function ExpresionForm({
   selectedClasificacionIds = [],
   isEditing = false,
   readOnly = false,
+  useAvailableNumber = false,
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -729,6 +731,7 @@ export function ExpresionForm({
 
   // Eliminar la función fallbackGetNextSequence ya que ahora está integrada en getNextSequenceNumber
 
+  // Modificar la función handleSubmit para manejar números disponibles
   const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
@@ -794,21 +797,31 @@ export function ExpresionForm({
           description: "La expresión ha sido actualizada exitosamente",
         })
       } else {
-        // Si estamos creando una nueva expresión, obtener el próximo número de secuencia de forma atómica
-        const secuenciaActual = await getNextSequenceNumber()
+        // Si estamos usando un número disponible, no necesitamos obtener un nuevo número de secuencia
+        if (useAvailableNumber && expresion?.sequence && expresion?.numero) {
+          // Usar los valores proporcionados sin alterar la tabla de secuencia
+          dataToSubmit = {
+            ...dataToSubmit,
+            sequence: expresion.sequence,
+            numero: expresion.numero,
+          }
+        } else {
+          // Si estamos creando una nueva expresión normal, obtener el próximo número de secuencia
+          const secuenciaActual = await getNextSequenceNumber()
 
-        // Buscar la abreviatura del tema seleccionado
-        const temaSeleccionado = temas.find((tema) => tema.id === selectedTema)
-        const abreviatura = temaSeleccionado?.abreviatura || "RNAR"
+          // Buscar la abreviatura del tema seleccionado
+          const temaSeleccionado = temas.find((tema) => tema.id === selectedTema)
+          const abreviatura = temaSeleccionado?.abreviatura || "RNAR"
 
-        // Generar el número de expresión con la secuencia obtenida
-        const numeroExpresion = generateExpressionNumber(selectedYear, secuenciaActual, abreviatura)
+          // Generar el número de expresión con la secuencia obtenida
+          const numeroExpresion = generateExpressionNumber(selectedYear, secuenciaActual, abreviatura)
 
-        // Actualizar los datos a enviar con la secuencia y número correctos
-        dataToSubmit = {
-          ...dataToSubmit,
-          sequence: secuenciaActual,
-          numero: numeroExpresion,
+          // Actualizar los datos a enviar con la secuencia y número correctos
+          dataToSubmit = {
+            ...dataToSubmit,
+            sequence: secuenciaActual,
+            numero: numeroExpresion,
+          }
         }
 
         // Crear una nueva expresión

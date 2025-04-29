@@ -1367,12 +1367,30 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
     }
   }, [isAssignDialogOpen])
 
+  // Modificar la función confirmDelete para verificar y actualizar la secuencia si es necesario
   const confirmDelete = async () => {
     if (!expressionToDelete) return
 
     setIsDeleting(true)
 
     try {
+      // Primero verificar si esta expresión es la última (con el número de secuencia más alto) para su año
+      const { data: lastExpression, error: lastExpressionError } = await supabase
+        .from("expresiones")
+        .select("id, sequence, ano")
+        .eq("ano", expressionToDelete.ano)
+        .order("sequence", { ascending: false })
+        .limit(1)
+        .single()
+
+      if (lastExpressionError) {
+        console.error("Error al verificar si es la última expresión:", lastExpressionError)
+        // Continuamos con el proceso aunque haya error en esta verificación
+      }
+
+      // Si esta expresión es la última para su año, actualizar la secuencia
+      const isLastExpression = lastExpression && lastExpression.id === expressionToDelete.id
+
       // Primero eliminar las relaciones con comités
       const { error: comitesError } = await supabase
         .from("expresion_comites")
@@ -1441,6 +1459,55 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       if (expresionError) {
         console.error("Error eliminando expresión:", expresionError)
         throw expresionError
+      }
+
+      // Si era la última expresión del año, actualizar la secuencia
+      if (isLastExpression) {
+        // Obtener la nueva última expresión para ese año (después de eliminar la anterior)
+        const { data: newLastExpression, error: newLastExpressionError } = await supabase
+          .from("expresiones")
+          .select("sequence")
+          .eq("ano", expressionToDelete.ano)
+          .order("sequence", { ascending: false })
+          .limit(1)
+          .single()
+
+        // Si no hay error, significa que hay al menos una expresión para ese año
+        if (!newLastExpressionError && newLastExpression) {
+          // Actualizar la secuencia al valor de la nueva última expresión
+          const newSequenceValue = newLastExpression.sequence
+
+          // Obtener el valor actual de la secuencia
+          const { data: currentSequence, error: sequenceError } = await supabase
+            .from("secuencia")
+            .select("valor")
+            .eq("id", "next_sequence")
+            .single()
+
+          if (!sequenceError && currentSequence) {
+            const currentValue = Number.parseInt(currentSequence.valor, 10)
+
+            // Solo actualizar si el valor actual es mayor que el nuevo valor + 1
+            // (el +1 es porque next_sequence guarda el próximo valor a usar)
+            if (currentValue > newSequenceValue + 1) {
+              await supabase
+                .from("secuencia")
+                .update({
+                  valor: String(newSequenceValue + 1),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", "next_sequence")
+
+              console.log(
+                `Secuencia actualizada a ${newSequenceValue + 1} después de eliminar la última expresión del año ${expressionToDelete.ano}`,
+              )
+            }
+          }
+        } else if (newLastExpressionError && newLastExpressionError.code === "PGRST116") {
+          // Si el error es PGRST116, significa que no hay más expresiones para ese año
+          // Podríamos reiniciar la secuencia a 1 para ese año, pero esto depende de la lógica de negocio
+          console.log(`No hay más expresiones para el año ${expressionToDelete.ano}`)
+        }
       }
 
       toast({

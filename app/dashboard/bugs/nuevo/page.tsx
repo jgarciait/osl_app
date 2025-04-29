@@ -1,6 +1,5 @@
 import type { Metadata } from "next"
 import { BugReportForm } from "@/components/bug-report-form"
-import { Bug } from "lucide-react"
 
 export const metadata: Metadata = {
   title: "Nuevo Reporte de Bug | OSL",

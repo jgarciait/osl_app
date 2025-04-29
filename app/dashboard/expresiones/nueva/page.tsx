@@ -1,61 +1,130 @@
-import { createServerClient } from "@/lib/supabase-server"
+"use client"
+
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
+import { createClientClient } from "@/lib/supabase-client"
 import { ExpresionForm } from "@/components/expresion-form"
+import { useToast } from "@/components/ui/use-toast"
+import { Loader2 } from "lucide-react"
 
-export default async function NuevaExpresionPage() {
-  const supabase = createServerClient()
+export default function NuevaExpresionPage() {
+  const [comites, setComites] = useState([])
+  const [temas, setTemas] = useState([])
+  const [clasificaciones, setClasificaciones] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [nextSequence, setNextSequence] = useState(1)
+  const supabase = createClientClient()
+  const { toast } = useToast()
+  const searchParams = useSearchParams()
 
-  // Fetch committees for the form
-  const { data: comites } = await supabase.from("comites").select("*").order("nombre")
+  // Parámetros para usar un número disponible
+  const useAvailableNumber = searchParams.get("useAvailableNumber") === "true"
+  const availableYear = searchParams.get("year")
+  const availableTema = searchParams.get("tema")
+  const availableSequence = searchParams.get("sequence")
+  const availableNumero = searchParams.get("numero")
 
-  // Fetch temas for the form
-  const { data: temas } = await supabase.from("temas").select("*").order("nombre")
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setIsLoading(true)
 
-  // Obtener todas las clasificaciones
-  const { data: clasificaciones, error: clasificacionesError } = await supabase
-    .from("clasificaciones")
-    .select("*")
-    .order("nombre", { ascending: true })
+        // Obtener comités
+        const { data: comitesData, error: comitesError } = await supabase
+          .from("comites")
+          .select("*")
+          .order("nombre", { ascending: true })
 
-  if (clasificacionesError) {
-    console.error("Error fetching clasificaciones:", clasificacionesError)
-  }
+        if (comitesError) throw comitesError
+        setComites(comitesData || [])
 
-  // Get the current year and next sequence number
-  const currentYear = new Date().getFullYear()
+        // Obtener temas
+        const { data: temasData, error: temasError } = await supabase
+          .from("temas")
+          .select("*")
+          .order("nombre", { ascending: true })
 
-  // Primero intentamos obtener la configuración de secuencia
-  const { data: seqData } = await supabase.from("secuencia").select("valor").eq("id", "next_sequence").single()
+        if (temasError) throw temasError
+        setTemas(temasData || [])
 
-  let nextSequence = 1
+        // Obtener clasificaciones
+        const { data: clasificacionesData, error: clasificacionesError } = await supabase
+          .from("clasificaciones")
+          .select("*")
+          .order("nombre", { ascending: true })
 
-  if (seqData) {
-    // Si hay configuración, la usamos
-    nextSequence = Number.parseInt(seqData.valor, 10)
-  } else {
-    // Si no hay configuración, obtenemos la última expresión
-    const { data: lastExpresion } = await supabase
-      .from("expresiones")
-      .select("sequence")
-      .order("sequence", { ascending: false })
-      .limit(1)
+        if (clasificacionesError) throw clasificacionesError
+        setClasificaciones(clasificacionesData || [])
 
-    // Si hay expresiones, usamos la última secuencia + 1
-    if (lastExpresion && lastExpresion.length > 0) {
-      nextSequence = lastExpresion[0].sequence + 1
+        // Obtener el próximo número de secuencia
+        const { data: secuenciaData, error: secuenciaError } = await supabase
+          .from("secuencia")
+          .select("valor")
+          .eq("id", "next_sequence")
+          .single()
+
+        if (secuenciaError) {
+          console.error("Error al obtener secuencia:", secuenciaError)
+          // Si hay error, usar 1 como valor predeterminado
+          setNextSequence(1)
+        } else {
+          setNextSequence(Number.parseInt(secuenciaData.valor, 10))
+        }
+      } catch (error) {
+        console.error("Error al cargar datos:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudieron cargar los datos necesarios. Intente nuevamente.",
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchData()
+  }, [supabase, toast])
+
+  // Crear un objeto de expresión con los datos del número disponible si es necesario
+  const createExpressionWithAvailableNumber = () => {
+    if (!useAvailableNumber || !availableYear || !availableTema || !availableSequence || !availableNumero) {
+      return null
+    }
+
+    // Convertir los valores a los tipos correctos
+    const year = Number.parseInt(availableYear, 10)
+    const sequence = Number.parseInt(availableSequence, 10)
+    const tema = availableTema
+
+    // Crear un objeto de expresión con los datos del número disponible
+    return {
+      ano: year,
+      tema: tema,
+      sequence: sequence,
+      numero: availableNumero,
+      mes: new Date().getMonth() + 1, // Mes actual
     }
   }
 
-  return (
-    <>
-      <div className="w-full py-6 px-4">
-        <ExpresionForm
-          comites={comites || []}
-          temas={temas || []}
-          clasificaciones={clasificaciones || []}
-          currentYear={currentYear}
-          nextSequence={nextSequence}
-        />
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center h-[calc(100vh-200px)]">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
       </div>
-    </>
+    )
+  }
+
+  return (
+    <div className="container mx-auto py-6">
+      <h1 className="text-2xl font-bold mb-6">Nueva Expresión</h1>
+      <ExpresionForm
+        comites={comites}
+        temas={temas}
+        clasificaciones={clasificaciones}
+        nextSequence={nextSequence}
+        expresion={createExpressionWithAvailableNumber()}
+        useAvailableNumber={useAvailableNumber}
+      />
+    </div>
   )
 }

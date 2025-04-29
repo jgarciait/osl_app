@@ -297,11 +297,11 @@ export function BugReportsTable({ statusFilter }: BugReportsTableProps) {
                 <CheckCircle2 className="mr-2 h-4 w-4" />
                 Marcar como cerrado
               </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => handleDelete(report.id)} className="text-red-600">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Eliminar
-                  </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => handleDelete(report.id)} className="text-red-600">
+                <Trash2 className="mr-2 h-4 w-4" />
+                Eliminar
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )

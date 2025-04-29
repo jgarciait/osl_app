@@ -3,11 +3,12 @@
 import Link from "next/link"
 import { usePathname, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { PlusCircle, PanelLeft } from "lucide-react"
+import { PlusCircle, PanelLeft, ListFilter } from "lucide-react"
 import { useSidebarContext } from "@/components/app-sidebar"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 import { useEffect, useState } from "react"
 import { createClientClient } from "@/lib/supabase-client"
+import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
 
 export function DashboardHeader() {
   const pathname = usePathname()
@@ -19,6 +20,7 @@ export function DashboardHeader() {
 
   // Estado para almacenar el número de expresión
   const [expresionNumero, setExpresionNumero] = useState<string | null>(null)
+  const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
   // Verificar si estamos en la página de edición de expresión
   const isEditingExpresion = pathname.includes("/dashboard/expresiones") && pathname.includes("/editar")
@@ -73,12 +75,23 @@ export function DashboardHeader() {
         </h1>
       </div>
       {showNewButton && (
-        <Link href="/dashboard/expresiones/nueva">
-          <Button className="bg-[#1a365d] hover:bg-[#15294d]">
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Nueva Expresión
+        <div className="flex gap-2">
+          <Link href="/dashboard/expresiones/nueva">
+            <Button className="bg-[#1a365d] hover:bg-[#15294d]">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Nueva Expresión
+            </Button>
+          </Link>
+          <Button
+            onClick={() => setIsAvailableNumbersDialogOpen(true)}
+            variant="outline"
+            className="border-[#1a365d] text-[#1a365d] hover:bg-[#1a365d] hover:text-white"
+          >
+            <ListFilter className="mr-2 h-4 w-4" />
+            Usar Número Disponible
           </Button>
-        </Link>
+          <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
+        </div>
       )}
     </header>
   )

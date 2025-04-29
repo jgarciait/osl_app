@@ -253,9 +253,8 @@ export function InteractiveGraph() {
               <SelectContent>
                 <SelectItem value="all">Todos los nodos</SelectItem>
                 <SelectItem value="persona">Personas</SelectItem>
-            
+
                 <SelectItem value="comite">Referidos</SelectItem>
-               
               </SelectContent>
             </Select>
             <Button variant="outline" size="icon" onClick={handleZoomIn}>
