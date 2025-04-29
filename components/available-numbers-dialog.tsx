@@ -1,17 +1,12 @@
 "use client"
 
+import { DialogFooter } from "@/components/ui/dialog"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClientClient } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/use-toast"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
@@ -169,7 +164,7 @@ export function AvailableNumbersDialog({ open, onOpenChange }: AvailableNumbersD
   }
 
   // Función para crear una nueva expresión con el número seleccionado
-  const createExpressionWithNumber = () => {
+  const createExpressionWithNumber = async () => {
     if (!selectedNumber || !selectedYear || !selectedTema) {
       toast({
         variant: "destructive",
@@ -190,13 +185,64 @@ export function AvailableNumbersDialog({ open, onOpenChange }: AvailableNumbersD
       return
     }
 
-    // Redirigir a la página de creación de expresión con los parámetros necesarios
-    router.push(
-      `/dashboard/expresiones/nueva?useAvailableNumber=true&year=${selectedYear}&tema=${selectedTema}&sequence=${selectedNumberObj.sequence}&numero=${encodeURIComponent(selectedNumber)}`,
-    )
+    try {
+      // Mostrar indicador de carga
+      setIsLoading(true)
 
-    // Cerrar el diálogo
-    onOpenChange(false)
+      // Crear la expresión directamente
+      const year = Number.parseInt(selectedYear, 10)
+      const sequence = selectedNumberObj.sequence
+
+      // Obtener el tema seleccionado
+      const tema = temas.find((t) => t.id === selectedTema)
+      if (!tema) {
+        throw new Error("Tema no encontrado")
+      }
+
+      // Crear la expresión en la base de datos
+      const { data, error } = await supabase
+        .from("expresiones")
+        .insert({
+          ano: year,
+          tema: selectedTema,
+          sequence: sequence,
+          numero: selectedNumberObj.numero,
+          mes: new Date().getMonth() + 1, // Mes actual
+          fecha_recibido: new Date().toISOString(),
+          nombre: `Nueva expresión ${selectedNumberObj.numero}`, // Nombre temporal
+          propuesta: "", // Propuesta vacía
+        })
+        .select()
+
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        throw new Error("No se pudo crear la expresión")
+      }
+
+      const expresionId = data[0].id
+
+      // Cerrar el diálogo
+      onOpenChange(false)
+
+      // Mostrar mensaje de éxito
+      toast({
+        title: "Expresión creada",
+        description: `Se ha creado la expresión con número ${selectedNumberObj.numero}`,
+      })
+
+      // Redirigir a la página de edición
+      router.push(`/dashboard/expresiones/${expresionId}/editar`)
+    } catch (error) {
+      console.error("Error al crear expresión:", error)
+      toast({
+        variant: "destructive",
+        title: "Error al crear expresión",
+        description: error.message || "Ocurrió un error al crear la expresión. Intente nuevamente.",
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -291,10 +337,17 @@ export function AvailableNumbersDialog({ open, onOpenChange }: AvailableNumbersD
           </Button>
           <Button
             onClick={createExpressionWithNumber}
-            disabled={!selectedNumber}
+            disabled={!selectedNumber || isLoading}
             className="bg-[#1a365d] hover:bg-[#15294d]"
           >
-            Crear Expresión
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Creando...
+              </>
+            ) : (
+              "Crear Expresión"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
