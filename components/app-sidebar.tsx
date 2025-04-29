@@ -84,11 +84,23 @@ export function AppSidebar() {
 
     try {
       // Crear una nueva instancia del cliente para cada operación
-      // Esto evita problemas con sesiones caducadas o inválidas
       const supabase = createClientClient()
 
-      // Intentar cerrar sesión sin verificar primero
-      await supabase.auth.signOut()
+      // Cerrar sesión en Supabase
+      const { error } = await supabase.auth.signOut()
+
+      if (error) throw error
+
+      // Limpiar almacenamiento local
+      if (typeof window !== "undefined") {
+        // Limpiar cualquier token o estado de autenticación
+        localStorage.removeItem("supabase.auth.token")
+        localStorage.removeItem("supabase.auth.expires_at")
+        localStorage.removeItem("supabase.auth.refresh_token")
+
+        // Limpiar cualquier otro estado de la aplicación si es necesario
+        sessionStorage.clear()
+      }
 
       // Mostrar mensaje de éxito
       toast({
@@ -96,15 +108,11 @@ export function AppSidebar() {
         description: "Ha cerrado sesión exitosamente",
       })
 
-      // Limpiar cualquier estado local si es necesario
-      localStorage.removeItem("supabase.auth.token")
-
-      // Redireccionar al login
-      router.push("/login")
+      // Forzar recarga completa para limpiar cualquier estado en memoria
+      window.location.href = "/login"
     } catch (error) {
       console.error("Error al cerrar sesión:", error)
 
-      // Mensaje de error más amigable
       toast({
         variant: "destructive",
         title: "Error al cerrar sesión",
@@ -112,7 +120,7 @@ export function AppSidebar() {
       })
 
       // Redirigir al login de todos modos
-      router.push("/login")
+      window.location.href = "/login"
     } finally {
       setIsLoggingOut(false)
     }

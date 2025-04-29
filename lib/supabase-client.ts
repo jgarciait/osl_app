@@ -18,19 +18,23 @@ export function createClientClient() {
   }
 
   // En desarrollo, siempre creamos una nueva instancia para evitar problemas con HMR
-  if (process.env.NODE_ENV === "development" || !supabaseClient) {
-    supabaseClient = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        realtime: {
-          params: {
-            eventsPerSecond: 10,
-          },
+  // En producción, también creamos una nueva instancia para evitar problemas con sesiones obsoletas
+  supabaseClient = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+      realtime: {
+        params: {
+          eventsPerSecond: 10,
         },
       },
-    )
-  }
+    },
+  )
 
   return supabaseClient
 }
@@ -39,8 +43,13 @@ export function createClientClient() {
 export async function handleAuthError(error: any) {
   console.error("Error de autenticación:", error)
 
-  // Si es un error de token no encontrado, intentamos limpiar la sesión
-  if (error?.code === "refresh_token_not_found" || error?.message?.includes("refresh token")) {
+  // Si es un error de token no encontrado o token expirado, limpiamos la sesión
+  if (
+    error?.code === "refresh_token_not_found" ||
+    error?.message?.includes("refresh token") ||
+    error?.message?.includes("JWT expired") ||
+    error?.message?.includes("invalid token")
+  ) {
     const supabase = createClientClient()
 
     // Intentar cerrar sesión para limpiar tokens
@@ -54,6 +63,9 @@ export async function handleAuthError(error: any) {
     // Limpiar cualquier token almacenado localmente
     if (typeof window !== "undefined") {
       localStorage.removeItem("supabase.auth.token")
+      localStorage.removeItem("supabase.auth.expires_at")
+      localStorage.removeItem("supabase.auth.refresh_token")
+      sessionStorage.clear()
     }
 
     // Redirigir al login si estamos en el cliente
