@@ -1099,7 +1099,137 @@ export function ExpresionForm({
                 {isEditing && (
                   <div className="space-y-2">
                     <Label htmlFor="numero">Número</Label>
-                    <Input id="numero" name="numero" value={formData.numero} onChange={handleInputChange} disabled />
+                    <div className="flex space-x-2">
+                      <Input
+                        id="numero"
+                        name="numero"
+                        value={formData.numero}
+                        onChange={handleInputChange}
+                        disabled
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          try {
+                            // Obtener el año actual de la expresión
+                            const year = formData.ano
+
+                            // Obtener todas las expresiones para este año
+                            const { data: expresiones, error: expresionesError } = await supabase
+                              .from("expresiones")
+                              .select("sequence, numero")
+                              .eq("ano", year)
+                              .order("sequence", { ascending: true })
+
+                            if (expresionesError) throw expresionesError
+
+                            // Si no hay expresiones, mostrar mensaje
+                            if (!expresiones || expresiones.length === 0) {
+                              toast({
+                                variant: "destructive",
+                                title: "No hay expresiones",
+                                description: `No hay expresiones para el año ${year}. No se pueden encontrar números disponibles.`,
+                              })
+                              return
+                            }
+
+                            // Buscar el tema actual
+                            const temaSeleccionado = temas.find((tema) => tema.id === selectedTema)
+                            if (!temaSeleccionado) {
+                              toast({
+                                variant: "destructive",
+                                title: "Tema no encontrado",
+                                description: "Por favor seleccione un tema válido.",
+                              })
+                              return
+                            }
+
+                            const abreviatura = temaSeleccionado.abreviatura || "RNAR"
+
+                            // Encontrar huecos en la secuencia
+                            const sortedExpresiones = [...expresiones].sort((a, b) => a.sequence - b.sequence)
+                            const maxSequence = sortedExpresiones[sortedExpresiones.length - 1].sequence
+                            const existingSequences = new Set(sortedExpresiones.map((exp) => exp.sequence))
+
+                            // Buscar huecos desde 1 hasta maxSequence
+                            const gaps = []
+                            for (let i = 1; i < maxSequence; i++) {
+                              if (!existingSequences.has(i)) {
+                                const sequenceStr = i.toString().padStart(4, "0")
+                                const numeroExpresion = `${year}-${sequenceStr}-${abreviatura}`
+                                gaps.push({
+                                  sequence: i,
+                                  numero: numeroExpresion,
+                                })
+                              }
+                            }
+
+                            if (gaps.length === 0) {
+                              toast({
+                                variant: "warning",
+                                title: "No hay números disponibles",
+                                description: `No se encontraron números disponibles para el año ${year} y tema ${temaSeleccionado.nombre}.`,
+                              })
+                              return
+                            }
+
+                            // Mostrar diálogo para seleccionar número
+                            const options = gaps.map((gap) => ({
+                              label: gap.numero,
+                              value: JSON.stringify(gap),
+                            }))
+
+                            // Usar un diálogo personalizado o una biblioteca de diálogos
+                            // Por simplicidad, usaremos un prompt nativo
+                            const selectedOption = window.prompt(
+                              `Seleccione un número disponible (${options.length} disponibles):
+${options.map((opt, idx) => `${idx + 1}. ${opt.label}`).join("\n")}
+Ingrese el número de la opción (1-${options.length}):`,
+                              "1",
+                            )
+
+                            if (!selectedOption) return
+
+                            const optionIndex = Number.parseInt(selectedOption, 10) - 1
+                            if (isNaN(optionIndex) || optionIndex < 0 || optionIndex >= options.length) {
+                              toast({
+                                variant: "destructive",
+                                title: "Opción inválida",
+                                description: "Por favor seleccione una opción válida.",
+                              })
+                              return
+                            }
+
+                            const selectedGap = JSON.parse(options[optionIndex].value)
+
+                            // Actualizar el formulario con el nuevo número y secuencia
+                            setFormData((prev) => ({
+                              ...prev,
+                              numero: selectedGap.numero,
+                              sequence: selectedGap.sequence,
+                            }))
+
+                            toast({
+                              title: "Número actualizado",
+                              description: `El número de expresión ha sido actualizado a ${selectedGap.numero}.`,
+                            })
+                          } catch (error) {
+                            console.error("Error al buscar números disponibles:", error)
+                            toast({
+                              variant: "destructive",
+                              title: "Error",
+                              description: "Ocurrió un error al buscar números disponibles. Intente nuevamente.",
+                            })
+                          }
+                        }}
+                        className="whitespace-nowrap"
+                      >
+                        Cambiar Número
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>
