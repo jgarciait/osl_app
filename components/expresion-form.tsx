@@ -8,21 +8,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
 import { createClientClient } from "@/lib/supabase-client"
-import { DocumentTagSelector } from "@/components/document-tag-selector"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, Loader2, Upload, X, FileText, Eye, Download } from "lucide-react"
+import { CalendarIcon, Loader2, FileText, Eye, Upload, Download, X } from "lucide-react"
 import { generateExpressionNumber } from "@/lib/utils"
 import { format } from "date-fns"
 // Corregir la importación del locale español
 import { es } from "date-fns/locale"
 import dynamic from "next/dynamic"
-
-// Primero, añadir los imports necesarios para el Dialog (modal) en la parte superior del archivo
-import { Dialog, DialogContent } from "@/components/ui/dialog"
 
 // Importar react-select de forma dinámica para evitar problemas de carga
 const ReactSelect = dynamic(() => import("react-select"), { ssr: false })
@@ -35,6 +31,11 @@ import { MultiSelect } from "@/components/ui/multi-select"
 
 // Con la importación y uso de la función centralizada:
 import { logCurrentUserAction } from "@/lib/audit-trail"
+
+// Añadir estos imports al principio del archivo, justo después de los imports existentes
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+
+import { DocumentTagSelector } from "@/components/document-tag-selector"
 
 const MONTHS = [
   { value: "1", label: "Enero" },
@@ -501,6 +502,8 @@ export function ExpresionForm({
   }
 
   // Modificar la parte donde se obtiene la URL y se guarda en la base de datos
+  // Modificar la función uploadFiles para garantizar que siempre trabaje con un string:
+
   const uploadFiles = async (expresionId) => {
     if (files.length === 0) return []
 
@@ -508,13 +511,18 @@ export function ExpresionForm({
     const uploadedDocs = []
 
     try {
+      // Asegurar que expresionId sea un string
+      const expresionIdString = String(expresionId)
+
+      console.log("Subiendo archivos para expresión ID:", expresionIdString)
+
       for (let i = 0; i < files.length; i++) {
         const file = files[i]
         const originalFileName = file.name
         // Sanitizar el nombre del archivo para el almacenamiento
         const sanitizedFileName = removeAccents(file.name)
         const fileName = `${Date.now()}_${sanitizedFileName}`
-        const filePath = `expresiones/${expresionId}/${fileName}`
+        const filePath = `expresiones/${expresionIdString}/${fileName}`
 
         // Inicializar progreso
         setUploadProgress((prev) => ({
@@ -564,6 +572,10 @@ export function ExpresionForm({
           [i]: 100,
         }))
       }
+
+      // Limpiar la lista de archivos después de una carga exitosa
+      setFiles([])
+      setUploadProgress({})
 
       return uploadedDocs
     } catch (error) {
@@ -850,7 +862,7 @@ export function ExpresionForm({
         const filesNeedingUpload = files.some((_, index) => uploadProgress[index] !== 100)
 
         if (filesNeedingUpload) {
-          const uploadedDocs = await uploadFiles(expresionId)
+          const uploadedDocs = await uploadFiles(expresionId.toString())
 
           // Guardar las etiquetas para los documentos recién subidos
           for (const doc of uploadedDocs) {
@@ -1639,7 +1651,19 @@ Ingrese el número de la opción (1-${options.length}):`,
                             <Button
                               type="button"
                               size="sm"
-                              onClick={uploadFiles}
+                              onClick={async () => {
+                                if (expresion && expresion.id) {
+                                  await uploadFiles(expresion.id.toString())
+                                  // Refrescar la lista de documentos después de subir
+                                  fetchExistingDocuments(expresion.id)
+                                } else {
+                                  toast({
+                                    variant: "destructive",
+                                    title: "Error",
+                                    description: "No se puede subir archivos sin guardar la expresión primero",
+                                  })
+                                }
+                              }}
                               disabled={uploading || files.length === 0}
                               className="bg-[#1a365d] hover:bg-[#15294d]"
                             >
@@ -1854,7 +1878,7 @@ Ingrese el número de la opción (1-${options.length}):`,
                   if (files.length > 0) {
                     const filesNeedingUpload = files.some((_, index) => uploadProgress[index] !== 100)
                     if (filesNeedingUpload) {
-                      await uploadFiles(expresionId)
+                      await uploadFiles(expresionId.toString())
                     }
                   }
 
@@ -1875,7 +1899,7 @@ Ingrese el número de la opción (1-${options.length}):`,
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  "Guardando..."
+                  Guardando...
                 </>
               ) : (
                 "Guardar y Salir"
