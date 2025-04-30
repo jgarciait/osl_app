@@ -72,6 +72,7 @@ export function DashboardHeader() {
           {pathname === "/dashboard/reportes" && "Reportes"}
           {pathname === "/dashboard/settings" && "Configuración"}
           {pathname === "/dashboard/perfil" && "Perfil"}
+          {pathname === "/dashboard/audit_trail" && "Auditoría del Sistema"}
         </h1>
       </div>
       {showNewButton && (

@@ -33,6 +33,9 @@ import { Editor } from "@/components/ui/editor"
 // Importar MultiSelect para las clasificaciones
 import { MultiSelect } from "@/components/ui/multi-select"
 
+// Con la importación y uso de la función centralizada:
+import { logCurrentUserAction } from "@/lib/audit-trail"
+
 const MONTHS = [
   { value: "1", label: "Enero" },
   { value: "2", label: "Febrero" },
@@ -576,80 +579,6 @@ export function ExpresionForm({
     }
   }
 
-  // Función para manejar la subida independiente de archivos
-  const handleUploadFiles = async () => {
-    if (files.length === 0) return
-
-    // Si estamos creando una nueva expresión, necesitamos guardarla primero
-    if (!isEditing && !expresion?.id) {
-      toast({
-        variant: "warning",
-        title: "Guardar expresión primero",
-        description: "Debe guardar la expresión antes de subir documentos.",
-      })
-      return
-    }
-
-    setUploading(true)
-
-    try {
-      const expresionId = isEditing ? expresion.id : expresion?.id
-      const uploadedDocs = await uploadFiles(expresionId)
-
-      if (uploadedDocs.length > 0) {
-        // Update the list of documents, avoiding duplicates
-        setExistingDocuments((prev) => {
-          const newDocs = uploadedDocs.filter((newDoc) => !prev.some((existingDoc) => existingDoc.id === newDoc.id))
-          return [...prev, ...newDocs]
-        })
-
-        // Transferir las etiquetas temporales a los documentos reales
-        const newTagsMap = { ...documentTags }
-
-        // Para cada documento subido
-        uploadedDocs.forEach((doc, index) => {
-          // Si hay etiquetas temporales para este archivo, transferirlas al documento real
-          if (documentTags[`temp-${index}`]) {
-            newTagsMap[doc.id] = documentTags[`temp-${index}`]
-
-            // Guardar las etiquetas en la base de datos
-            documentTags[`temp-${index}`].forEach(async (tag) => {
-              await supabase.from("documento_etiquetas").insert({
-                documento_id: doc.id,
-                etiqueta_id: tag.id,
-              })
-            })
-
-            // Eliminar las etiquetas temporales
-            delete newTagsMap[`temp-${index}`]
-          } else {
-            // Si no hay etiquetas temporales, inicializar con un array vacío
-            newTagsMap[doc.id] = []
-          }
-        })
-
-        setDocumentTags(newTagsMap)
-
-        // Limpiar la lista de archivos seleccionados
-        setFiles([])
-
-        toast({
-          title: "Documentos subidos",
-          description: `Se han subido ${uploadedDocs.length} documento(s) exitosamente.`,
-        })
-      }
-    } catch (error) {
-      console.error("Error uploading files:", error)
-      toast({
-        variant: "destructive",
-        title: "Error al subir archivos",
-        description: "Hubo un problema al subir los documentos. Intente nuevamente.",
-      })
-    } finally {
-      setUploading(false)
-    }
-  }
-
   // Añadir una función para abrir el visor de PDF
   const openPdfViewer = (url) => {
     setCurrentPdfUrl(url)
@@ -756,15 +685,22 @@ export function ExpresionForm({
   // Eliminar la función fallbackGetNextSequence ya que ahora está integrada en getNextSequenceNumber
 
   // Añadir una función para registrar acciones en el audit trail después de las funciones existentes:
+  // Actualizar la función logAuditTrail para usar la función del archivo lib/audit-trail.ts
+
+  // Reemplazar la función logAuditTrail existente:
   const logAuditTrail = async (action) => {
     try {
-      if (!userId) {
-        console.error("No se pudo registrar la acción: userId es null o undefined")
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        console.error("No se pudo registrar la acción: No hay usuario autenticado")
         return
       }
 
       const { error } = await supabase.from("audit_trail_expresiones").insert({
-        user_id: userId,
+        user_id: user.id,
         action: action,
       })
 
@@ -841,6 +777,11 @@ export function ExpresionForm({
           title: "Expresión actualizada",
           description: "La expresión ha sido actualizada exitosamente",
         })
+
+        // Registrar la acción en el audit trail
+        if (formData.numero) {
+          await logCurrentUserAction(`Expresión Actualizada: ${formData.numero}`)
+        }
       } else {
         // Si estamos usando un número disponible, no necesitamos obtener un nuevo número de secuencia
         if (useAvailableNumber && expresion?.sequence && expresion?.numero) {
@@ -892,30 +833,14 @@ export function ExpresionForm({
           })
         }
 
-        // Buscar la función handleSave y añadir el registro en el audit trail después de guardar exitosamente
-        // Dentro de la función handleSave, después de guardar exitosamente (donde está el toast de éxito)
-        if (data && !error) {
-          // Registrar en el audit trail
-          const expressionNumber =
-            dataToSubmit.numero ||
-            `${selectedYear}-${dataToSubmit.sequence.toString().padStart(4, "0")}-${
-              temas.find((tema) => tema.id === selectedTema)?.abreviatura || "RNAR"
-            }`
-          await logAuditTrail(`Expresión Creada: ${dataToSubmit.numero}`)
-
-          toast({
-            title: "Expresión creada",
-            description: "La expresión ha sido creada exitosamente",
-          })
-        }
+        toast({
+          title: "Expresión creada",
+          description: "La expresión ha sido creada exitosamente",
+        })
 
         // Registrar la acción en el audit trail
-        if (userId) {
-          // Verificar si estamos en la ruta /nueva
-          const isNewRoute = pathname.includes("/nueva")
-          if (isNewRoute) {
-            await logAuditTrail(`Expresión Creada: ${dataToSubmit.numero}`)
-          }
+        if (dataToSubmit.numero) {
+          await logCurrentUserAction(`Expresión Creada: ${dataToSubmit.numero}`)
         }
       }
 
@@ -1363,7 +1288,7 @@ Ingrese el número de la opción (1-${options.length}):`,
                         classNamePrefix="select"
                         options={comitesOptions.map((comite) => ({
                           value: comite.value,
-                          label: comite.label,
+                          label: `${comite.nombre} (${comite.tipo === "senado" ? "Senado" : "Cámara"})`,
                         }))}
                         value={
                           selectedComites
@@ -1714,7 +1639,7 @@ Ingrese el número de la opción (1-${options.length}):`,
                             <Button
                               type="button"
                               size="sm"
-                              onClick={handleUploadFiles}
+                              onClick={uploadFiles}
                               disabled={uploading || files.length === 0}
                               className="bg-[#1a365d] hover:bg-[#15294d]"
                             >
@@ -1821,6 +1746,7 @@ Ingrese el número de la opción (1-${options.length}):`,
               type="button"
               disabled={isSubmitting}
               className="bg-[#2a4a7d] hover:bg-[#1e3a6d]"
+              // En la función del botón "Guardar y Salir", reemplazar todo el bloque onClick con:
               onClick={async (e) => {
                 e.preventDefault()
                 setIsSubmitting(true)
@@ -1837,7 +1763,7 @@ Ingrese el número de la opción (1-${options.length}):`,
                     return
                   }
 
-                  // Preparar datos para enviar (mismo código que en handleSubmit)
+                  // Preparar datos para enviar
                   let dataToSubmit = {
                     ...formData,
                     fecha_recibido:
@@ -1875,6 +1801,11 @@ Ingrese el número de la opción (1-${options.length}):`,
                         clasificacion_id: clasificacionId,
                       })
                     }
+
+                    // Registrar la acción en el audit trail
+                    if (formData.numero) {
+                      await logCurrentUserAction(`Expresión Actualizada y Salida: ${formData.numero}`)
+                    }
                   } else {
                     // Crear nueva expresión
                     const secuenciaActual = await getNextSequenceNumber()
@@ -1907,7 +1838,17 @@ Ingrese el número de la opción (1-${options.length}):`,
                         clasificacion_id: clasificacionId,
                       })
                     }
+
+                    // Registrar la acción en el audit trail
+                    if (dataToSubmit.numero) {
+                      await logCurrentUserAction(`Expresión Creada y Salida: ${dataToSubmit.numero}`)
+                    }
                   }
+
+                  toast({
+                    title: isEditing ? "Expresión actualizada" : "Expresión creada",
+                    description: "La expresión ha sido guardada exitosamente",
+                  })
 
                   // Subir archivos si hay alguno
                   if (files.length > 0) {
@@ -1915,23 +1856,6 @@ Ingrese el número de la opción (1-${options.length}):`,
                     if (filesNeedingUpload) {
                       await uploadFiles(expresionId)
                     }
-                  }
-
-                  // Buscar la función handleSaveAndExit y añadir el registro en el audit trail después de guardar exitosamente
-                  // Dentro de la función handleSaveAndExit, después de guardar exitosamente (donde está el toast de éxito)
-                  if (data && !error) {
-                    // Registrar en el audit trail
-                    const expressionNumber =
-                      dataToSubmit.numero ||
-                      `${selectedYear}-${dataToSubmit.sequence.toString().padStart(4, "0")}-${
-                        temas.find((tema) => tema.id === selectedTema)?.abreviatura || "RNAR"
-                      }`
-                    await logAuditTrail(`Expresión Creada y Salida: ${dataToSubmit.numero}`)
-
-                    toast({
-                      title: isEditing ? "Expresión actualizada" : "Expresión creada",
-                      description: "La expresión ha sido guardada exitosamente",
-                    })
                   }
 
                   // Redirigir a la lista de expresiones

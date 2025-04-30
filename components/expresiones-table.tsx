@@ -52,6 +52,9 @@ import { createClient } from "@supabase/supabase-js"
 // Importar el hook useGroupPermissions
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
+// Importar la función logAuditTrail
+import { logCurrentUserAction } from "@/lib/audit-trail"
+
 // Función para eliminar etiquetas HTML del texto
 const stripHtml = (html) => {
   if (!html) return ""
@@ -776,7 +779,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
               </DropdownMenuItem>
               {canManageExpressions && (
                 <DropdownMenuItem
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation()
                     setExpressionToDelete(row.original)
                     setIsDeleteDialogOpen(true)
@@ -1377,7 +1380,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       // Primero verificar si esta expresión es la última (con el número de secuencia más alto) para su año
       const { data: lastExpression, error: lastExpressionError } = await supabase
         .from("expresiones")
-        .select("id, sequence, ano")
+        .select("id, sequence, ano, numero")
         .eq("ano", expressionToDelete.ano)
         .order("sequence", { ascending: false })
         .limit(1)
@@ -1497,10 +1500,6 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", "next_sequence")
-
-              console.log(
-                `Secuencia actualizada a ${newSequenceValue + 1} después de eliminar la última expresión del año ${expressionToDelete.ano}`,
-              )
             }
           }
         } else if (newLastExpressionError && newLastExpressionError.code === "PGRST116") {
@@ -1508,6 +1507,11 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
           // Podríamos reiniciar la secuencia a 1 para ese año, pero esto depende de la lógica de negocio
           console.log(`No hay más expresiones para el año ${expressionToDelete.ano}`)
         }
+      }
+
+      // Registrar la acción en el audit trail
+      if (lastExpression?.numero) {
+        await logCurrentUserAction(`Expresión Eliminada: ${lastExpression.numero}`)
       }
 
       toast({
