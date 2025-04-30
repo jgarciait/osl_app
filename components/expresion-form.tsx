@@ -117,6 +117,7 @@ export function ExpresionForm({
   isEditing = false,
   readOnly = false,
   useAvailableNumber = false,
+  pathname = "",
 }) {
   const router = useRouter()
   const { toast } = useToast()
@@ -157,6 +158,9 @@ export function ExpresionForm({
 
   // Primero, añadir un estado para rastrear el tab activo después de las declaraciones de estado existentes (alrededor de la línea 70):
   const [activeTab, setActiveTab] = useState("informacion")
+
+  // Primero, añadir un estado para almacenar el ID del usuario actual después de las declaraciones de estado existentes (alrededor de la línea 70):
+  const [userId, setUserId] = useState(null)
 
   // Convertir comités a formato de opciones para el MultiSelect
   const comitesOptions = comites.map((comite) => ({
@@ -208,6 +212,26 @@ export function ExpresionForm({
       sequence: nextSequence, // Aseguramos que sequence se actualice también
     }))
   }, [selectedTema, selectedYear, temas, nextSequence, isEditing])
+
+  // Añadir un useEffect para obtener el ID del usuario actual después de los otros useEffects:
+  useEffect(() => {
+    const fetchUserId = async () => {
+      try {
+        const {
+          data: { user },
+          error,
+        } = await supabase.auth.getUser()
+        if (error) throw error
+        if (user) {
+          setUserId(user.id)
+        }
+      } catch (error) {
+        console.error("Error al obtener el usuario:", error)
+      }
+    }
+
+    fetchUserId()
+  }, [supabase])
 
   // Función para obtener los documentos existentes
   const fetchExistingDocuments = async (expresionId) => {
@@ -731,6 +755,27 @@ export function ExpresionForm({
 
   // Eliminar la función fallbackGetNextSequence ya que ahora está integrada en getNextSequenceNumber
 
+  // Añadir una función para registrar acciones en el audit trail después de las funciones existentes:
+  const logAuditTrail = async (action) => {
+    try {
+      if (!userId) {
+        console.error("No se pudo registrar la acción: userId es null o undefined")
+        return
+      }
+
+      const { error } = await supabase.from("audit_trail_expresiones").insert({
+        user_id: userId,
+        action: action,
+      })
+
+      if (error) {
+        console.error("Error al registrar acción en audit trail:", error)
+      }
+    } catch (error) {
+      console.error("Error al registrar acción en audit trail:", error)
+    }
+  }
+
   // Modificar la función handleSubmit para manejar números disponibles
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -847,10 +892,31 @@ export function ExpresionForm({
           })
         }
 
-        toast({
-          title: "Expresión creada",
-          description: "La expresión ha sido creada exitosamente",
-        })
+        // Buscar la función handleSave y añadir el registro en el audit trail después de guardar exitosamente
+        // Dentro de la función handleSave, después de guardar exitosamente (donde está el toast de éxito)
+        if (data && !error) {
+          // Registrar en el audit trail
+          const expressionNumber =
+            dataToSubmit.numero ||
+            `${selectedYear}-${dataToSubmit.sequence.toString().padStart(4, "0")}-${
+              temas.find((tema) => tema.id === selectedTema)?.abreviatura || "RNAR"
+            }`
+          await logAuditTrail(`Expresión Creada: ${dataToSubmit.numero}`)
+
+          toast({
+            title: "Expresión creada",
+            description: "La expresión ha sido creada exitosamente",
+          })
+        }
+
+        // Registrar la acción en el audit trail
+        if (userId) {
+          // Verificar si estamos en la ruta /nueva
+          const isNewRoute = pathname.includes("/nueva")
+          if (isNewRoute) {
+            await logAuditTrail(`Expresión Creada: ${dataToSubmit.numero}`)
+          }
+        }
       }
 
       // Subir archivos si hay alguno y no han sido subidos previamente
@@ -1851,10 +1917,22 @@ Ingrese el número de la opción (1-${options.length}):`,
                     }
                   }
 
-                  toast({
-                    title: isEditing ? "Expresión actualizada" : "Expresión creada",
-                    description: "La expresión ha sido guardada exitosamente",
-                  })
+                  // Buscar la función handleSaveAndExit y añadir el registro en el audit trail después de guardar exitosamente
+                  // Dentro de la función handleSaveAndExit, después de guardar exitosamente (donde está el toast de éxito)
+                  if (data && !error) {
+                    // Registrar en el audit trail
+                    const expressionNumber =
+                      dataToSubmit.numero ||
+                      `${selectedYear}-${dataToSubmit.sequence.toString().padStart(4, "0")}-${
+                        temas.find((tema) => tema.id === selectedTema)?.abreviatura || "RNAR"
+                      }`
+                    await logAuditTrail(`Expresión Creada y Salida: ${dataToSubmit.numero}`)
+
+                    toast({
+                      title: isEditing ? "Expresión actualizada" : "Expresión creada",
+                      description: "La expresión ha sido guardada exitosamente",
+                    })
+                  }
 
                   // Redirigir a la lista de expresiones
                   router.push("/dashboard/expresiones")

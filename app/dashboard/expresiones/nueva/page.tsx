@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, usePathname } from "next/navigation"
 import { createClientClient } from "@/lib/supabase-client"
 import { ExpresionForm } from "@/components/expresion-form"
 import { useToast } from "@/components/ui/use-toast"
@@ -16,6 +16,7 @@ export default function NuevaExpresionPage() {
   const supabase = createClientClient()
   const { toast } = useToast()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
 
   // Parámetros para usar un número disponible
   const useAvailableNumber = searchParams.get("useAvailableNumber") === "true"
@@ -123,6 +124,7 @@ export default function NuevaExpresionPage() {
         nextSequence={nextSequence}
         expresion={createExpressionWithAvailableNumber()}
         useAvailableNumber={useAvailableNumber}
+        pathname={pathname}
       />
     </div>
   )

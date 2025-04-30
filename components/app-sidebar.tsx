@@ -19,6 +19,7 @@ import {
   Folder,
   Bug,
   RefreshCw,
+  ClipboardList,
 } from "lucide-react"
 import Image from "next/image"
 import { createContext, useContext, type ReactNode } from "react"
@@ -211,6 +212,13 @@ export function AppSidebar() {
       href: "/dashboard/documentos",
       isActive: pathname === "/dashboard/documentos",
       permission: { resource: "documents", action: "view" },
+    },
+    {
+      title: "Auditoría",
+      icon: ClipboardList,
+      href: "/dashboard/audit_trail",
+      isActive: pathname === "/dashboard/audit_trail",
+      permission: { resource: "audit_trail", action: "view" }, // Permiso específico para ver auditoría
     },
   ]
 
