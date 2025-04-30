@@ -28,15 +28,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { DataTable } from "@/components/data-table/data-table"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
-import { DataTablePagination } from "@/components/data-table/data-table-pagination"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ConfirmationDialog } from "@/components/confirmation-dialog"
-import { ContextMenu } from "@/components/context-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 
 // Primero, añadir la importación de JSZip en la parte superior del archivo
@@ -54,6 +47,15 @@ import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 // Importar la función logAuditTrail
 import { logCurrentUserAction } from "@/lib/audit-trail"
+
+// Importar componentes adicionales
+import { DataTable } from "@/components/data-table/data-table"
+import { DataTablePagination } from "@/components/data-table/data-table-pagination"
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog"
+import { ContextMenu } from "@/components/ui/context-menu"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Función para eliminar etiquetas HTML del texto
 const stripHtml = (html) => {
@@ -599,22 +601,8 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
           return value.includes(row.getValue(id))
         },
         cell: ({ row }) => {
-          const month = row.original.mes
-          const monthNames = [
-            "Enero",
-            "Febrero",
-            "Marzo",
-            "Abril",
-            "Mayo",
-            "Junio",
-            "Julio",
-            "Agosto",
-            "Septiembre",
-            "Octubre",
-            "Noviembre",
-            "Diciembre",
-          ]
-          return monthNames[month - 1]
+          // Mostrar el año en lugar del mes
+          return row.original.ano
         },
       },
       {
