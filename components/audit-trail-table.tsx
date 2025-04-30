@@ -94,9 +94,8 @@ export function AuditTrailTable() {
   const formatDateTime = (dateString: string) => {
     try {
       const date = new Date(dateString)
-      // Ajustar a la zona horaria de Puerto Rico (-4 horas)
-      const puertoRicoDate = new Date(date.getTime() - 4 * 60 * 60 * 1000)
-      return format(puertoRicoDate, "dd/MM/yyyy hh:mm:ss aa", { locale: es })
+      // Mostrar la hora en UTC sin ajustes de zona horaria
+      return format(date, "dd/MM/yyyy hh:mm:ss aa", { locale: es })
     } catch (error) {
       console.error("Error al formatear la fecha:", error)
       return dateString
@@ -148,7 +147,7 @@ export function AuditTrailTable() {
                 <TableRow>
                   <TableHead>Usuario</TableHead>
                   <TableHead>Acción</TableHead>
-                  <TableHead>Fecha y Hora</TableHead>
+                  <TableHead>Fecha y Hora (UTC)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
