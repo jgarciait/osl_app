@@ -1288,7 +1288,7 @@ Ingrese el número de la opción (1-${options.length}):`,
                         classNamePrefix="select"
                         options={comitesOptions.map((comite) => ({
                           value: comite.value,
-                          label: `${comite.nombre} (${comite.tipo === "senado" ? "Senado" : "Cámara"})`,
+                          label: comite.label,
                         }))}
                         value={
                           selectedComites
