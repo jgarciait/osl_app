@@ -20,9 +20,6 @@ import { SimplePieChart } from "./simple-pie-chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 
-// Añadir un nuevo import para el componente que crearemos
-import { UserTimeAnalysis } from "./visualizations/user-time-analysis"
-
 // Constantes para los meses
 const MONTHS = [
   { value: "all", label: "Todos los meses" },
@@ -512,9 +509,6 @@ export function DashboardCharts() {
           <TabsTrigger value="temas" className="flex-1">
             Por Tema
           </TabsTrigger>
-          <TabsTrigger value="tiempos" className="flex-1">
-            Tiempos de Creación
-          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="mensual">
@@ -648,27 +642,6 @@ export function DashboardCharts() {
                     </div>
                   </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-        <TabsContent value="tiempos">
-          <Card>
-            <CardContent className="px-1 sm:px-3 py-2 sm:py-3 h-[400px] sm:h-[500px]">
-              <CardDescription className="text-xs sm:text-sm mb-2">
-                Tiempo promedio de creación de expresiones por usuario
-                {selectedYear !== "all" ? ` (${selectedYear})` : ""}
-                {selectedMonth !== "all" ? ` - ${MONTHS.find((m) => m.value === selectedMonth)?.label}` : ""}
-              </CardDescription>
-              {loading ? (
-                <div className="flex h-full items-center justify-center">
-                  <p>Cargando datos...</p>
-                </div>
-              ) : (
-                <UserTimeAnalysis
-                  selectedYear={selectedYear !== "all" ? Number(selectedYear) : undefined}
-                  selectedMonth={selectedMonth !== "all" ? Number(selectedMonth) : undefined}
-                />
               )}
             </CardContent>
           </Card>
