@@ -19,7 +19,11 @@ type AuditTrailRecord = {
   user_email?: string
 }
 
-export function AuditTrailTable() {
+type AuditTrailTableProps = {
+  enableRealtime?: boolean
+}
+
+export function AuditTrailTable({ enableRealtime = false }: AuditTrailTableProps) {
   const [records, setRecords] = useState<AuditTrailRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
@@ -30,7 +34,77 @@ export function AuditTrailTable() {
 
   useEffect(() => {
     fetchAuditTrail()
-  }, [currentPage, searchTerm])
+
+    // Configurar Realtime subscription si está habilitado
+    let subscription: any = null
+
+    if (enableRealtime) {
+      const supabase = createClientClient()
+
+      subscription = supabase
+        .channel("audit-trail-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "audit_trail_expresiones",
+          },
+          (payload) => {
+            console.log("Cambio en tiempo real recibido:", payload)
+
+            // Si es un nuevo registro, actualizar la lista
+            if (payload.eventType === "INSERT") {
+              // Obtener el email del usuario para el nuevo registro
+              const fetchUserEmail = async () => {
+                try {
+                  const { data, error } = await supabase
+                    .from("profiles")
+                    .select("email")
+                    .eq("id", payload.new.user_id)
+                    .single()
+
+                  const newRecord = {
+                    id: payload.new.id,
+                    created_at: payload.new.created_at,
+                    user_id: payload.new.user_id,
+                    action: payload.new.action,
+                    user_email: data?.email || "Usuario desconocido",
+                  }
+
+                  // Añadir el nuevo registro al principio y mantener el límite
+                  setRecords((prevRecords) => {
+                    const updatedRecords = [newRecord, ...prevRecords]
+                    // Mantener solo los primeros recordsPerPage registros
+                    return updatedRecords.slice(0, recordsPerPage)
+                  })
+
+                  // Actualizar el total de registros
+                  setTotalRecords((prev) => prev + 1)
+                  setTotalPages(Math.ceil((totalRecords + 1) / recordsPerPage))
+                } catch (error) {
+                  console.error("Error al obtener email del usuario:", error)
+                }
+              }
+
+              fetchUserEmail()
+            }
+          },
+        )
+        .subscribe()
+
+      console.log("Suscripción Realtime activada para audit_trail_expresiones")
+    }
+
+    // Limpiar suscripción al desmontar
+    return () => {
+      if (subscription) {
+        const supabase = createClientClient()
+        supabase.removeChannel(subscription)
+        console.log("Suscripción Realtime desactivada")
+      }
+    }
+  }, [currentPage, searchTerm, enableRealtime])
 
   const fetchAuditTrail = async () => {
     setLoading(true)
@@ -133,6 +207,16 @@ export function AuditTrailTable() {
           Buscar
         </Button>
       </form>
+
+      {enableRealtime && (
+        <div className="flex items-center text-sm text-green-600">
+          <span className="relative flex h-3 w-3 mr-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+          </span>
+          Actualizaciones en tiempo real activadas
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center items-center py-10">

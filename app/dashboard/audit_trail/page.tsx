@@ -1,6 +1,6 @@
 import { createServerClient } from "@/lib/supabase-server"
 import { redirect } from "next/navigation"
-import { AuditTrailTable } from "@/components/audit-trail-table"
+import { AuditTrailTabs } from "@/components/audit-trail-tabs"
 import { PermissionGuard } from "@/components/permission-guard"
 
 export const dynamic = "force-dynamic"
@@ -24,7 +24,7 @@ export default async function AuditTrailPage() {
       title="Auditoría del Sistema"
     >
       <div className="container mx-auto py-10">
-        <AuditTrailTable />
+        <AuditTrailTabs enableRealtime={true} />
       </div>
     </PermissionGuard>
   )

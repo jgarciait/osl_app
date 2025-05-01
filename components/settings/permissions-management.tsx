@@ -171,18 +171,52 @@ export function PermissionsManagement() {
   const fetchGroups = async () => {
     setLoading(true)
     try {
-      const { data, error } = await supabase.from("groups").select("*").order("name", { ascending: true })
+      console.log("Obteniendo grupos del departamento 1...")
 
-      if (error) throw error
+      // Paso 1: Obtener los IDs de los grupos asociados al departamento 1
+      const { data: departmentGroups, error: deptError } = await supabase
+        .from("departments_group")
+        .select("group_id")
+        .eq("department_id", 1)
 
-      setGroups(data)
+      if (deptError) {
+        console.error("Error obteniendo grupos del departamento:", deptError)
+        throw deptError
+      }
+
+      if (!departmentGroups || departmentGroups.length === 0) {
+        console.log("No se encontraron grupos asociados al departamento 1")
+        setGroups([])
+        setLoading(false)
+        return
+      }
+
+      // Extraer los IDs de los grupos
+      const groupIds = departmentGroups.map((dg) => dg.group_id)
+      console.log(`Se encontraron ${groupIds.length} grupos asociados al departamento 1:`, groupIds)
+
+      // Paso 2: Obtener los detalles de los grupos
+      const { data: groupsData, error: groupsError } = await supabase
+        .from("groups")
+        .select("*")
+        .in("id", groupIds)
+        .order("name", { ascending: true })
+
+      if (groupsError) {
+        console.error("Error obteniendo detalles de los grupos:", groupsError)
+        throw groupsError
+      }
+
+      console.log(`Se obtuvieron ${groupsData?.length || 0} grupos del departamento 1`)
+      setGroups(groupsData || [])
     } catch (error) {
       console.error("Error fetching groups:", error)
       toast({
         variant: "destructive",
         title: "Error al cargar grupos",
-        description: error.message || "No se pudieron cargar los grupos",
+        description: error.message || "No se pudieron cargar los grupos del departamento 1",
       })
+      setGroups([])
     } finally {
       setLoading(false)
     }
@@ -753,7 +787,9 @@ export function PermissionsManagement() {
                         <Loader2 className="h-6 w-6 animate-spin" />
                       </div>
                     ) : groups.length === 0 ? (
-                      <p className="text-center py-4 text-muted-foreground">No hay grupos disponibles</p>
+                      <p className="text-center py-4 text-muted-foreground">
+                        No hay grupos asociados al departamento 1
+                      </p>
                     ) : (
                       groups.map((group) => (
                         <Button

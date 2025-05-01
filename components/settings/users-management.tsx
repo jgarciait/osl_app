@@ -62,12 +62,51 @@ export function UsersManagement() {
   const fetchUsers = async () => {
     setLoading(true)
     try {
-      // Obtener perfiles de la tabla pública
-      const { data: profiles, error: profilesError } = await supabase.from("profiles").select("*")
+      console.log("Obteniendo usuarios asociados al departamento 1")
+
+      // 1. Primero obtenemos los IDs de los grupos asociados al departamento 1
+      const { data: departmentGroups, error: deptGroupsError } = await supabase
+        .from("departments_group")
+        .select("group_id")
+        .eq("department_id", 1)
+
+      if (deptGroupsError) throw deptGroupsError
+
+      if (!departmentGroups || departmentGroups.length === 0) {
+        console.log("No hay grupos asociados al departamento 1")
+        setUsers([])
+        setLoading(false)
+        return
+      }
+
+      const departmentGroupIds = departmentGroups.map((dg) => dg.group_id)
+      console.log(`Encontrados ${departmentGroupIds.length} grupos asociados al departamento 1:`, departmentGroupIds)
+
+      // 2. Obtenemos los usuarios que pertenecen a esos grupos
+      const { data: userGroupsData, error: userGroupsError } = await supabase
+        .from("user_groups")
+        .select("user_id, group_id")
+        .in("group_id", departmentGroupIds)
+
+      if (userGroupsError) throw userGroupsError
+
+      if (!userGroupsData || userGroupsData.length === 0) {
+        console.log("No hay usuarios asociados a los grupos del departamento 1")
+        setUsers([])
+        setLoading(false)
+        return
+      }
+
+      // Extraer IDs de usuarios únicos
+      const userIds = [...new Set(userGroupsData.map((ug) => ug.user_id))]
+      console.log(`Encontrados ${userIds.length} usuarios asociados a grupos del departamento 1`)
+
+      // 3. Obtenemos los perfiles de esos usuarios
+      const { data: profiles, error: profilesError } = await supabase.from("profiles").select("*").in("id", userIds)
 
       if (profilesError) throw profilesError
 
-      // Obtener todos los grupos para referencia
+      // 4. Obtenemos todos los grupos para referencia
       const { data: allGroups, error: groupsError } = await supabase.from("groups").select("id, name")
 
       if (groupsError) throw groupsError
@@ -78,23 +117,18 @@ export function UsersManagement() {
         return acc
       }, {})
 
-      // Obtener los grupos de cada usuario
-      const { data: userGroups, error: userGroupsError } = await supabase
-        .from("user_groups")
-        .select("user_id, group_id")
-
-      if (userGroupsError) throw userGroupsError
-
-      // Organizar los grupos por usuario
-      const userGroupsMap = userGroups.reduce((acc, ug) => {
-        if (!acc[ug.user_id]) {
-          acc[ug.user_id] = []
+      // Organizar los grupos por usuario (solo grupos del departamento 1)
+      const userGroupsMap = {}
+      userGroupsData.forEach((ug) => {
+        if (departmentGroupIds.includes(ug.group_id)) {
+          if (!userGroupsMap[ug.user_id]) {
+            userGroupsMap[ug.user_id] = []
+          }
+          userGroupsMap[ug.user_id].push(ug.group_id)
         }
-        acc[ug.user_id].push(ug.group_id)
-        return acc
-      }, {})
+      })
 
-      // Usar solo los datos de profiles y asegurar que no haya valores nulos
+      // Formatear los datos de usuarios
       const formattedUsers = profiles.map((profile) => ({
         id: profile.id || "",
         email: profile.email || "",
@@ -103,11 +137,12 @@ export function UsersManagement() {
         nombre: profile.nombre || "",
         apellido: profile.apellido || "",
         telefono: profile.telefono || "",
-        // Agregar los grupos del usuario
+        // Agregar solo los grupos del departamento 1
         groups: (userGroupsMap[profile.id] || []).map((groupId) => groupsMap[groupId]),
         groupIds: userGroupsMap[profile.id] || [],
       }))
 
+      console.log(`Formateados ${formattedUsers.length} usuarios para mostrar`)
       setUsers(formattedUsers)
     } catch (error) {
       console.error("Error fetching users:", error)
@@ -124,7 +159,28 @@ export function UsersManagement() {
   // Función para obtener grupos
   const fetchGroups = async () => {
     try {
-      const { data, error } = await supabase.from("groups").select("*").order("name", { ascending: true })
+      // Primero obtenemos los IDs de los grupos asociados al departamento 1
+      const { data: departmentGroups, error: deptGroupsError } = await supabase
+        .from("departments_group")
+        .select("group_id")
+        .eq("department_id", 1)
+
+      if (deptGroupsError) throw deptGroupsError
+
+      if (!departmentGroups || departmentGroups.length === 0) {
+        console.log("No hay grupos asociados al departamento 1")
+        setGroups([])
+        return
+      }
+
+      const departmentGroupIds = departmentGroups.map((dg) => dg.group_id)
+
+      // Obtenemos los detalles de esos grupos
+      const { data, error } = await supabase
+        .from("groups")
+        .select("*")
+        .in("id", departmentGroupIds)
+        .order("name", { ascending: true })
 
       if (error) throw error
 

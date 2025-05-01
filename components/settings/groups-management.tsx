@@ -54,12 +54,38 @@ export function GroupsManagement() {
     fetchGroups()
   }, [])
 
-  // Función para obtener grupos
+  // Función para obtener grupos usando JOIN
   const fetchGroups = async () => {
     setLoading(true)
     try {
-      // Obtener grupos con información de grupos padre
-      const { data, error } = await supabase
+      console.log("Fetching groups for department 1")
+
+      // Enfoque directo: primero obtener los IDs de los grupos
+      const { data: groupRelations, error: relationsError } = await supabase
+        .from("departments_group")
+        .select("group_id")
+        .eq("department_id", 1)
+
+      if (relationsError) {
+        console.error("Error fetching group relations:", relationsError)
+        throw relationsError
+      }
+
+      console.log("Group relations found:", groupRelations?.length || 0)
+
+      if (!groupRelations || groupRelations.length === 0) {
+        console.log("No groups associated with department 1")
+        setGroups([])
+        setLoading(false)
+        return
+      }
+
+      // Extraer los IDs de los grupos
+      const groupIds = groupRelations.map((item) => item.group_id)
+      console.log("Group IDs:", groupIds)
+
+      // Obtener los detalles de los grupos con información del padre
+      const { data: groupsData, error: groupsError } = await supabase
         .from("groups")
         .select(`
           id,
@@ -70,12 +96,16 @@ export function GroupsManagement() {
           updated_at,
           parent:parent_id(id, name)
         `)
+        .in("id", groupIds)
         .order("name")
 
-      if (error) throw error
+      if (groupsError) {
+        console.error("Error fetching groups details:", groupsError)
+        throw groupsError
+      }
 
-      // Organizar grupos en una estructura jerárquica para mostrar
-      setGroups(data)
+      console.log("Groups found:", groupsData?.length || 0)
+      setGroups(groupsData || [])
     } catch (error) {
       console.error("Error fetching groups:", error)
       toast({
@@ -140,6 +170,14 @@ export function GroupsManagement() {
         .select()
 
       if (error) throw error
+
+      // Asociar el grupo con el departamento 1
+      const { error: relationError } = await supabase.from("departments_group").insert({
+        department_id: 1,
+        group_id: data[0].id,
+      })
+
+      if (relationError) throw relationError
 
       toast({
         title: "Grupo creado",
@@ -286,6 +324,15 @@ export function GroupsManagement() {
       if (userGroups && userGroups.length > 0) {
         throw new Error("No se puede eliminar un grupo que tiene usuarios asignados")
       }
+
+      // Primero eliminar la relación con el departamento
+      const { error: relationDeleteError } = await supabase
+        .from("departments_group")
+        .delete()
+        .eq("group_id", selectedGroup.id)
+        .eq("department_id", 1)
+
+      if (relationDeleteError) throw relationDeleteError
 
       // Eliminar grupo
       const { error } = await supabase.from("groups").delete().eq("id", selectedGroup.id)
@@ -436,7 +483,7 @@ export function GroupsManagement() {
                 ) : filteredGroups.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="h-24 text-center">
-                      No se encontraron grupos
+                      No se encontraron grupos asociados al departamento 1
                     </td>
                   </tr>
                 ) : (

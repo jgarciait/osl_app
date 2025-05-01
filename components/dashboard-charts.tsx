@@ -20,6 +20,9 @@ import { SimplePieChart } from "./simple-pie-chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 
+// Añadir un nuevo import para el componente que crearemos
+import { UserTimeAnalysis } from "./visualizations/user-time-analysis"
+
 // Constantes para los meses
 const MONTHS = [
   { value: "all", label: "Todos los meses" },
@@ -55,6 +58,9 @@ export function DashboardCharts() {
   const [selectedYear, setSelectedYear] = useState("all")
   const [selectedMonth, setSelectedMonth] = useState("all")
 
+  // Add this after the other state declarations
+  const [realtimeIndicator, setRealtimeIndicator] = useState(false)
+
   // Efecto para cargar los años disponibles
   useEffect(() => {
     const fetchAvailableYears = async () => {
@@ -89,216 +95,243 @@ export function DashboardCharts() {
     fetchAvailableYears()
   }, [supabase])
 
+  // Move the fetchData function outside the useEffect but keep it inside the component
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      // Construir la consulta base para estadísticas
+      let statsQuery = supabase.from("expresiones").select("id, archivado")
+
+      // Aplicar filtros si están seleccionados
+      if (selectedYear !== "all") {
+        statsQuery = statsQuery.eq("ano", Number.parseInt(selectedYear))
+      }
+
+      if (selectedMonth !== "all") {
+        statsQuery = statsQuery.eq("mes", Number.parseInt(selectedMonth))
+      }
+
+      // Ejecutar la consulta para obtener todas las expresiones filtradas
+      const { data: filteredExpressions, error: statsError } = await statsQuery
+
+      if (statsError) throw new Error("Error al obtener estadísticas")
+
+      // Calcular estadísticas
+      const totalCount = filteredExpressions?.length || 0
+      const activeCount = filteredExpressions?.filter((exp) => !exp.archivado).length || 0
+      const archivedCount = filteredExpressions?.filter((exp) => exp.archivado).length || 0
+
+      setStats({
+        total: totalCount,
+        active: activeCount,
+        archived: archivedCount,
+      })
+
+      // Obtener datos mensuales
+      let monthlyQuery = supabase.from("expresiones").select("id, mes, archivado")
+
+      // Aplicar filtro de año si está seleccionado
+      if (selectedYear !== "all") {
+        monthlyQuery = monthlyQuery.eq("ano", Number.parseInt(selectedYear))
+      }
+
+      // No aplicamos el filtro de mes aquí porque queremos ver todos los meses para la gráfica mensual
+
+      const { data: monthlyExpresiones, error: monthlyError } = await monthlyQuery
+
+      if (monthlyError) throw new Error("Error al obtener datos mensuales")
+
+      // Procesar datos mensuales
+      const monthsData = Array(12)
+        .fill(0)
+        .map((_, index) => ({
+          mes: index + 1,
+          nombre: new Date(2023, index, 1).toLocaleString("es-ES", { month: "short" }),
+          total: 0,
+          activas: 0,
+          archivadas: 0,
+        }))
+
+      monthlyExpresiones?.forEach((exp) => {
+        if (exp.mes >= 1 && exp.mes <= 12) {
+          monthsData[exp.mes - 1].total += 1
+          if (exp.archivado) {
+            monthsData[exp.mes - 1].archivadas += 1
+          } else {
+            monthsData[exp.mes - 1].activas += 1
+          }
+        }
+      })
+
+      // Si hay un mes seleccionado, filtramos los datos mensuales para mostrar solo ese mes
+      if (selectedMonth !== "all") {
+        const monthIndex = Number.parseInt(selectedMonth) - 1
+        const filteredMonthData = [monthsData[monthIndex]]
+        setMonthlyData(filteredMonthData)
+      } else {
+        // Obtener los últimos 6 meses o todos si hay menos de 6
+        const currentMonth = new Date().getMonth()
+        const last6Months = []
+        for (let i = 5; i >= 0; i--) {
+          const monthIndex = (currentMonth - i + 12) % 12
+          last6Months.push(monthsData[monthIndex])
+        }
+        setMonthlyData(last6Months)
+      }
+
+      // Obtener datos de comisiones con filtros
+      let comisionesQuery = supabase.from("expresiones").select(`
+      id,
+      expresion_comites(
+        comite_id,
+        comites(id, nombre, tipo)
+      )
+    `)
+
+      // Aplicar filtros
+      if (selectedYear !== "all") {
+        comisionesQuery = comisionesQuery.eq("ano", Number.parseInt(selectedYear))
+      }
+
+      if (selectedMonth !== "all") {
+        comisionesQuery = comisionesQuery.eq("mes", Number.parseInt(selectedMonth))
+      }
+
+      const { data: comisionesExpresiones, error: comisionesError } = await comisionesQuery
+
+      if (comisionesError) throw new Error("Error al obtener datos de comisiones")
+
+      // Procesar datos de comisiones
+      const comisionesCount = {}
+
+      comisionesExpresiones?.forEach((exp) => {
+        exp.expresion_comites?.forEach((item) => {
+          const comiteNombre = item.comites?.nombre || "Sin comisión"
+          const comiteTipo = item.comites?.tipo || "desconocido"
+          const key = `${comiteNombre} (${comiteTipo === "senado" ? "Senado" : "Cámara"})`
+
+          if (comisionesCount[key]) {
+            comisionesCount[key] += 1
+          } else {
+            comisionesCount[key] = 1
+          }
+        })
+      })
+
+      const comisionesArray = Object.entries(comisionesCount).map(([name, value]) => ({
+        name,
+        value,
+      }))
+
+      // Ordenar por cantidad y limitar a los 10 principales
+      comisionesArray.sort((a, b) => (b.value as number) - (a.value as number))
+      setComisionesData(comisionesArray.slice(0, 10))
+
+      // Obtener datos de temas con filtros
+      let temasQuery = supabase.from("expresiones").select("tema").not("tema", "is", null)
+
+      // Aplicar filtros
+      if (selectedYear !== "all") {
+        temasQuery = temasQuery.eq("ano", Number.parseInt(selectedYear))
+      }
+
+      if (selectedMonth !== "all") {
+        temasQuery = temasQuery.eq("mes", Number.parseInt(selectedMonth))
+      }
+
+      const { data: expresiones, error: temasError } = await temasQuery
+
+      if (temasError) throw new Error("Error al obtener datos de temas")
+
+      // Obtener los nombres de los temas
+      const temaIds = expresiones?.map((exp) => exp.tema).filter(Boolean)
+      const uniqueTemaIds = [...new Set(temaIds)]
+
+      // Obtener los detalles de los temas
+      const { data: temasData, error: temasDetailsError } = await supabase
+        .from("temas")
+        .select("id, nombre")
+        .in("id", uniqueTemaIds)
+
+      if (temasDetailsError) throw new Error("Error al obtener detalles de temas")
+
+      // Crear un mapa de id -> nombre para los temas
+      const temasMap = {}
+      temasData?.forEach((tema) => {
+        temasMap[tema.id] = tema.nombre
+      })
+
+      // Contar las expresiones por tema
+      const temasCount = {}
+      expresiones?.forEach((exp) => {
+        const temaNombre = temasMap[exp.tema] || "Sin tema"
+
+        if (temasCount[temaNombre]) {
+          temasCount[temaNombre] += 1
+        } else {
+          temasCount[temaNombre] = 1
+        }
+      })
+
+      const temasArray = Object.entries(temasCount).map(([name, value]) => ({
+        name,
+        value,
+      }))
+
+      // Ordenar por cantidad
+      temasArray.sort((a, b) => (b.value as number) - (a.value as number))
+      setTemasData(temasArray)
+
+      // Obtener el conteo de archivos en el bucket "documentos"
+      const { data: filesCount, error: filesError } = await supabase.rpc("get_storage_object_count", {
+        bucket_name: "documentos",
+      })
+
+      if (filesError) {
+        console.error("Error al obtener conteo de archivos:", filesError)
+      } else {
+        // Actualizar el estado con el conteo de archivos
+        setStats((prevStats) => ({
+          ...prevStats,
+          files: filesCount?.[0]?.total_archivos || 0,
+        }))
+      }
+    } catch (error) {
+      console.error("Error al cargar datos del dashboard:", error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Efecto principal para cargar datos con filtros
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true)
-      try {
-        // Construir la consulta base para estadísticas
-        let statsQuery = supabase.from("expresiones").select("id, archivado")
-
-        // Aplicar filtros si están seleccionados
-        if (selectedYear !== "all") {
-          statsQuery = statsQuery.eq("ano", Number.parseInt(selectedYear))
-        }
-
-        if (selectedMonth !== "all") {
-          statsQuery = statsQuery.eq("mes", Number.parseInt(selectedMonth))
-        }
-
-        // Ejecutar la consulta para obtener todas las expresiones filtradas
-        const { data: filteredExpressions, error: statsError } = await statsQuery
-
-        if (statsError) throw new Error("Error al obtener estadísticas")
-
-        // Calcular estadísticas
-        const totalCount = filteredExpressions?.length || 0
-        const activeCount = filteredExpressions?.filter((exp) => !exp.archivado).length || 0
-        const archivedCount = filteredExpressions?.filter((exp) => exp.archivado).length || 0
-
-        setStats({
-          total: totalCount,
-          active: activeCount,
-          archived: archivedCount,
-        })
-
-        // Obtener datos mensuales
-        let monthlyQuery = supabase.from("expresiones").select("id, mes, archivado")
-
-        // Aplicar filtro de año si está seleccionado
-        if (selectedYear !== "all") {
-          monthlyQuery = monthlyQuery.eq("ano", Number.parseInt(selectedYear))
-        }
-
-        // No aplicamos el filtro de mes aquí porque queremos ver todos los meses para la gráfica mensual
-
-        const { data: monthlyExpresiones, error: monthlyError } = await monthlyQuery
-
-        if (monthlyError) throw new Error("Error al obtener datos mensuales")
-
-        // Procesar datos mensuales
-        const monthsData = Array(12)
-          .fill(0)
-          .map((_, index) => ({
-            mes: index + 1,
-            nombre: new Date(2023, index, 1).toLocaleString("es-ES", { month: "short" }),
-            total: 0,
-            activas: 0,
-            archivadas: 0,
-          }))
-
-        monthlyExpresiones?.forEach((exp) => {
-          if (exp.mes >= 1 && exp.mes <= 12) {
-            monthsData[exp.mes - 1].total += 1
-            if (exp.archivado) {
-              monthsData[exp.mes - 1].archivadas += 1
-            } else {
-              monthsData[exp.mes - 1].activas += 1
-            }
-          }
-        })
-
-        // Si hay un mes seleccionado, filtramos los datos mensuales para mostrar solo ese mes
-        if (selectedMonth !== "all") {
-          const monthIndex = Number.parseInt(selectedMonth) - 1
-          const filteredMonthData = [monthsData[monthIndex]]
-          setMonthlyData(filteredMonthData)
-        } else {
-          // Obtener los últimos 6 meses o todos si hay menos de 6
-          const currentMonth = new Date().getMonth()
-          const last6Months = []
-          for (let i = 5; i >= 0; i--) {
-            const monthIndex = (currentMonth - i + 12) % 12
-            last6Months.push(monthsData[monthIndex])
-          }
-          setMonthlyData(last6Months)
-        }
-
-        // Obtener datos de comisiones con filtros
-        let comisionesQuery = supabase.from("expresiones").select(`
-          id,
-          expresion_comites(
-            comite_id,
-            comites(id, nombre, tipo)
-          )
-        `)
-
-        // Aplicar filtros
-        if (selectedYear !== "all") {
-          comisionesQuery = comisionesQuery.eq("ano", Number.parseInt(selectedYear))
-        }
-
-        if (selectedMonth !== "all") {
-          comisionesQuery = comisionesQuery.eq("mes", Number.parseInt(selectedMonth))
-        }
-
-        const { data: comisionesExpresiones, error: comisionesError } = await comisionesQuery
-
-        if (comisionesError) throw new Error("Error al obtener datos de comisiones")
-
-        // Procesar datos de comisiones
-        const comisionesCount = {}
-
-        comisionesExpresiones?.forEach((exp) => {
-          exp.expresion_comites?.forEach((item) => {
-            const comiteNombre = item.comites?.nombre || "Sin comisión"
-            const comiteTipo = item.comites?.tipo || "desconocido"
-            const key = `${comiteNombre} (${comiteTipo === "senado" ? "Senado" : "Cámara"})`
-
-            if (comisionesCount[key]) {
-              comisionesCount[key] += 1
-            } else {
-              comisionesCount[key] = 1
-            }
-          })
-        })
-
-        const comisionesArray = Object.entries(comisionesCount).map(([name, value]) => ({
-          name,
-          value,
-        }))
-
-        // Ordenar por cantidad y limitar a los 10 principales
-        comisionesArray.sort((a, b) => (b.value as number) - (a.value as number))
-        setComisionesData(comisionesArray.slice(0, 10))
-
-        // Obtener datos de temas con filtros
-        let temasQuery = supabase.from("expresiones").select("tema").not("tema", "is", null)
-
-        // Aplicar filtros
-        if (selectedYear !== "all") {
-          temasQuery = temasQuery.eq("ano", Number.parseInt(selectedYear))
-        }
-
-        if (selectedMonth !== "all") {
-          temasQuery = temasQuery.eq("mes", Number.parseInt(selectedMonth))
-        }
-
-        const { data: expresiones, error: temasError } = await temasQuery
-
-        if (temasError) throw new Error("Error al obtener datos de temas")
-
-        // Obtener los nombres de los temas
-        const temaIds = expresiones?.map((exp) => exp.tema).filter(Boolean)
-        const uniqueTemaIds = [...new Set(temaIds)]
-
-        // Obtener los detalles de los temas
-        const { data: temasData, error: temasDetailsError } = await supabase
-          .from("temas")
-          .select("id, nombre")
-          .in("id", uniqueTemaIds)
-
-        if (temasDetailsError) throw new Error("Error al obtener detalles de temas")
-
-        // Crear un mapa de id -> nombre para los temas
-        const temasMap = {}
-        temasData?.forEach((tema) => {
-          temasMap[tema.id] = tema.nombre
-        })
-
-        // Contar las expresiones por tema
-        const temasCount = {}
-        expresiones?.forEach((exp) => {
-          const temaNombre = temasMap[exp.tema] || "Sin tema"
-
-          if (temasCount[temaNombre]) {
-            temasCount[temaNombre] += 1
-          } else {
-            temasCount[temaNombre] = 1
-          }
-        })
-
-        const temasArray = Object.entries(temasCount).map(([name, value]) => ({
-          name,
-          value,
-        }))
-
-        // Ordenar por cantidad
-        temasArray.sort((a, b) => (b.value as number) - (a.value as number))
-        setTemasData(temasArray)
-
-        // Obtener el conteo de archivos en el bucket "documentos"
-        const { data: filesCount, error: filesError } = await supabase.rpc("get_storage_object_count", {
-          bucket_name: "documentos",
-        })
-
-        if (filesError) {
-          console.error("Error al obtener conteo de archivos:", filesError)
-        } else {
-          // Actualizar el estado con el conteo de archivos
-          setStats((prevStats) => ({
-            ...prevStats,
-            files: filesCount?.[0]?.total_archivos || 0,
-          }))
-        }
-      } catch (error) {
-        console.error("Error al cargar datos del dashboard:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
     fetchData()
+
+    // Subscribe to real-time changes on the expresiones table
+    const channel = supabase
+      .channel("dashboard-expresiones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresiones",
+        },
+        async (payload) => {
+          // Show real-time indicator
+          setRealtimeIndicator(true)
+          setTimeout(() => setRealtimeIndicator(false), 3000)
+
+          // Refetch data to update stats
+          fetchData()
+        },
+      )
+      .subscribe()
+
+    // Cleanup subscription when component unmounts
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [supabase, selectedYear, selectedMonth])
 
   // Calcular porcentajes para las tarjetas
@@ -405,7 +438,15 @@ export function DashboardCharts() {
             <FileTextIcon className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{stats.total}</div>
+            <div className="text-xl sm:text-2xl font-bold relative">
+              {stats.total}
+              {realtimeIndicator && (
+                <span className="absolute -right-4 -top-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+                </span>
+              )}
+            </div>
             <p className="text-xs text-muted-foreground">
               {selectedYear !== "all" || selectedMonth !== "all" ? (
                 <>
@@ -470,6 +511,9 @@ export function DashboardCharts() {
           </TabsTrigger>
           <TabsTrigger value="temas" className="flex-1">
             Por Tema
+          </TabsTrigger>
+          <TabsTrigger value="tiempos" className="flex-1">
+            Tiempos de Creación
           </TabsTrigger>
         </TabsList>
 
@@ -604,6 +648,27 @@ export function DashboardCharts() {
                     </div>
                   </div>
                 </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="tiempos">
+          <Card>
+            <CardContent className="px-1 sm:px-3 py-2 sm:py-3 h-[400px] sm:h-[500px]">
+              <CardDescription className="text-xs sm:text-sm mb-2">
+                Tiempo promedio de creación de expresiones por usuario
+                {selectedYear !== "all" ? ` (${selectedYear})` : ""}
+                {selectedMonth !== "all" ? ` - ${MONTHS.find((m) => m.value === selectedMonth)?.label}` : ""}
+              </CardDescription>
+              {loading ? (
+                <div className="flex h-full items-center justify-center">
+                  <p>Cargando datos...</p>
+                </div>
+              ) : (
+                <UserTimeAnalysis
+                  selectedYear={selectedYear !== "all" ? Number(selectedYear) : undefined}
+                  selectedMonth={selectedMonth !== "all" ? Number(selectedMonth) : undefined}
+                />
               )}
             </CardContent>
           </Card>
