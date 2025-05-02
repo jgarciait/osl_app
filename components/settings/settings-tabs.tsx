@@ -71,7 +71,7 @@ export function SettingsTabs() {
           onClick={() => handleTabChange("users")}
           className={`py-2 px-4 text-center ${activeTab === "users" ? "bg-primary text-white" : "bg-muted"}`}
         >
-          Usuarios
+          Usuarios (OPC)
         </button>
         <button
           onClick={() => handleTabChange("groups")}

@@ -256,7 +256,7 @@ export function UserGroupsManagement() {
         <div className="md:col-span-1">
           <Card>
             <CardContent className="p-4">
-              <h3 className="text-lg font-medium mb-4">Usuarios</h3>
+              <h3 className="text-lg font-medium mb-4">Todos los usuarios de OSL</h3>
               <div className="space-y-2 h-[500px]" style={{ overflow: "auto" }}>
                 {loading ? (
                   <div className="flex justify-center py-4">
