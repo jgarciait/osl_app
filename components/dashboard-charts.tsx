@@ -525,7 +525,7 @@ export function DashboardCharts() {
           <Card>
             <CardContent className="px-1 sm:px-3 py-2 sm:py-3">
               <CardDescription className="text-xs sm:text-sm mb-2">
-                Distribución mensual de expresiones activas y archivadas
+                Distribución mensual de expresiones ciudadanas.
                 {selectedYear !== "all" ? ` (${selectedYear})` : ""}
               </CardDescription>
               {loading ? (
