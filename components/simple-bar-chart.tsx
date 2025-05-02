@@ -17,10 +17,16 @@ interface SimpleBarChartProps {
 // Modificar la función para mostrar solo los últimos 5 meses y mejorar la visualización cuando los datos están concentrados en un solo mes:
 
 export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
-  if (!data || data.length === 0) {
+  console.log("SimpleBarChart data:", data)
+
+  // Verificar si hay datos con valores
+  const hasValidData = data && data.length > 0 && data.some((item) => (item.value || item.total) > 0)
+
+  if (!hasValidData) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <p>No hay datos disponibles para mostrar</p>
+      <div className="flex h-full items-center justify-center flex-col">
+        <p className="text-red-500">No hay datos disponibles para mostrar</p>
+        <p className="text-xs text-gray-500 mt-2">Datos recibidos: {JSON.stringify(data)}</p>
       </div>
     )
   }
@@ -79,7 +85,8 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
   const hasDataInMultipleMonths = data.filter((item) => item.value > 0).length > 1
 
   // Encontrar el valor máximo para escalar las barras
-  const maxValue = Math.max(...last5MonthsData.map((item) => item.value))
+  const values = last5MonthsData.map((item) => Number(item.value || item.total || 0))
+  const maxValue = Math.max(...values) || 1 // Usar 1 como mínimo para evitar división por cero
 
   // Calcular la escala (altura máxima de barra en píxeles)
   const maxBarHeight = height - 100 // Aumentar el espacio para evitar desbordamiento
@@ -99,9 +106,9 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
         </div>
       </div>
 
-      <div className="flex items-end justify-around h-[calc(100%-30px)] border-b border-l relative overflow-hidden">
+      <div className="flex items-end justify-around h-[calc(100%-30px)] border-b border-l relative">
         {/* Líneas de guía horizontales */}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 pointer-events-none">
           <div className="border-t border-gray-100 absolute w-full" style={{ bottom: "25%" }}></div>
           <div className="border-t border-gray-100 absolute w-full" style={{ bottom: "50%" }}></div>
           <div className="border-t border-gray-100 absolute w-full" style={{ bottom: "75%" }}></div>
@@ -126,8 +133,13 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
         </div>
 
         {last5MonthsData.map((item, index) => {
+          // Usar value o total, lo que esté disponible
+          const itemValue = Number(item.value || item.total || 0)
+
           // Calcular la altura de la barra (limitada por maxBarHeight)
-          const barHeight = Math.max(item.value * scale, item.value > 0 ? 20 : 0) // Mínimo 20px si hay valor
+          const barHeight = Math.max(itemValue * scale, itemValue > 0 ? 20 : 0) // Mínimo 20px si hay valor
+
+          console.log(`Barra ${index}: valor=${itemValue}, altura=${barHeight}px`)
 
           return (
             <div
@@ -136,19 +148,19 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
             >
               <div className="flex flex-col w-full items-center">
                 {/* Barra con valor */}
-                <div className="relative w-8 sm:w-16 rounded-t-md overflow-hidden group">
-                  {item.value > 0 && (
+                <div className="relative w-8 sm:w-16 rounded-t-md overflow-visible group">
+                  {itemValue > 0 && (
                     <div
-                      className="w-full bg-gradient-to-t from-[#1a365d] to-[#2563eb] relative"
+                      className="w-full bg-gradient-to-t from-blue-700 to-blue-500 relative z-20"
                       style={{ height: `${barHeight}px` }}
                     >
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-20 bg-white transition-opacity"></div>
-                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black text-white text-[10px] sm:text-xs px-1 py-0.5 rounded transition-opacity whitespace-nowrap">
-                        {item.value} documentos
+                      <div className="absolute -top-6 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-black text-white text-[10px] sm:text-xs px-1 py-0.5 rounded transition-opacity whitespace-nowrap z-30">
+                        {itemValue} expresiones
                       </div>
                       {/* Mostrar la cantidad */}
                       <div className="absolute inset-0 flex items-center justify-center text-white text-[10px] sm:text-xs font-bold">
-                        {item.value}
+                        {itemValue}
                       </div>
                     </div>
                   )}
@@ -159,7 +171,9 @@ export function SimpleBarChart({ data, height = 350 }: SimpleBarChartProps) {
               </div>
 
               {/* Etiqueta del mes */}
-              <div className="text-[10px] sm:text-xs mt-1 sm:mt-2 text-center font-medium">{item.name}</div>
+              <div className="text-[10px] sm:text-xs mt-1 sm:mt-2 text-center font-medium">
+                {item.name || item.nombre}
+              </div>
             </div>
           )
         })}

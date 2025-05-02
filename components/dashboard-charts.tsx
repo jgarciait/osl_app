@@ -147,11 +147,14 @@ export function DashboardCharts() {
           total: 0,
           activas: 0,
           archivadas: 0,
+          value: 0, // Añadir propiedad value para SimpleBarChart
+          name: new Date(2023, index, 1).toLocaleString("es-ES", { month: "long" }), // Añadir propiedad name para SimpleBarChart
         }))
 
       monthlyExpresiones?.forEach((exp) => {
         if (exp.mes >= 1 && exp.mes <= 12) {
           monthsData[exp.mes - 1].total += 1
+          monthsData[exp.mes - 1].value += 1 // Actualizar también la propiedad value
           if (exp.archivado) {
             monthsData[exp.mes - 1].archivadas += 1
           } else {
@@ -173,7 +176,14 @@ export function DashboardCharts() {
           const monthIndex = (currentMonth - i + 12) % 12
           last6Months.push(monthsData[monthIndex])
         }
-        setMonthlyData(last6Months)
+        // Asegurarse de que los datos tienen las propiedades necesarias para el gráfico
+        const processedData = last6Months.map((month) => ({
+          ...month,
+          value: month.total, // Asegurar que value está establecido correctamente
+          name: month.nombre, // Asegurar que name está establecido correctamente
+        }))
+        console.log("Datos mensuales procesados:", processedData)
+        setMonthlyData(processedData)
       }
 
       // Obtener datos de comisiones con filtros
