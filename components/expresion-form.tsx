@@ -442,8 +442,36 @@ export function ExpresionForm({
   }
 
   const handleTemaChange = (selected) => {
-    setSelectedTema(selected ? selected.value : null)
-    setFormData((prev) => ({ ...prev, tema: selected ? selected.value : null }))
+    const newTemaId = selected ? selected.value : null
+    setSelectedTema(newTemaId)
+    setFormData((prev) => {
+      // Actualizar el tema en el estado
+      const updatedData = { ...prev, tema: newTemaId }
+
+      // Si estamos en modo edición y hay un número existente, actualizar la abreviatura
+      if (isEditing && updatedData.numero) {
+        // Encontrar el tema seleccionado para obtener su abreviatura
+        const temaSeleccionado = temas.find((tema) => tema.id === newTemaId)
+        const abreviatura = temaSeleccionado?.abreviatura || "RNAR"
+
+        // Extraer las partes del número actual
+        const currentParts = updatedData.numero.split("-")
+        if (currentParts.length >= 3) {
+          const year = currentParts[0]
+          const sequence = currentParts[1]
+
+          // Generar nuevo número con la abreviatura actualizada
+          const updatedNumero = `${year}-${sequence}-${abreviatura}`
+
+          // Actualizar el número en el estado
+          updatedData.numero = updatedNumero
+
+          console.log(`Tema cambiado: Actualizando número de ${prev.numero} a ${updatedNumero}`)
+        }
+      }
+
+      return updatedData
+    })
   }
 
   const handleComitesChange = (selected) => {
