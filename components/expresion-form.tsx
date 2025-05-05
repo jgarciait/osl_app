@@ -199,7 +199,7 @@ export function ExpresionForm({
 
   // Efecto para actualizar el número de expresión cuando cambia el tema o el año
   useEffect(() => {
-    if (isEditing) return // No actualizar el número si estamos editando
+    if (isEditing) return // No actualizar el número si estamos editando - esto se maneja en handleSubmit
 
     // Buscar la abreviatura del tema seleccionado
     const temaSeleccionado = temas.find((tema) => tema.id === selectedTema)
@@ -758,6 +758,31 @@ export function ExpresionForm({
       let expresionId
 
       if (isEditing && expresion?.id) {
+        // Check if tema has changed and update the number if needed
+        if (formData.tema !== expresion.tema) {
+          // Find the selected tema to get its abbreviation
+          const temaSeleccionado = temas.find((tema) => tema.id === formData.tema)
+          const abreviatura = temaSeleccionado?.abreviatura || "RNAR"
+
+          // Extract the current year and sequence from the existing number
+          const currentParts = formData.numero.split("-")
+          if (currentParts.length >= 3) {
+            const year = currentParts[0]
+            const sequence = currentParts[1]
+
+            // Generate new number with the updated abbreviation
+            const updatedNumero = `${year}-${sequence}-${abreviatura}`
+
+            // Update the form data with the new number
+            dataToSubmit = {
+              ...dataToSubmit,
+              numero: updatedNumero,
+            }
+
+            console.log(`Tema changed: Updating number from ${formData.numero} to ${updatedNumero}`)
+          }
+        }
+
         // Actualizar la expresión existente
         const { error } = await supabase.from("expresiones").update(dataToSubmit).eq("id", expresion.id)
 
@@ -1803,6 +1828,31 @@ Ingrese el número de la opción (1-${options.length}):`,
                   let expresionId
 
                   if (isEditing && expresion?.id) {
+                    // Check if tema has changed and update the number if needed
+                    if (formData.tema !== expresion.tema) {
+                      // Find the selected tema to get its abbreviation
+                      const temaSeleccionado = temas.find((tema) => tema.id === formData.tema)
+                      const abreviatura = temaSeleccionado?.abreviatura || "RNAR"
+
+                      // Extract the current year and sequence from the existing number
+                      const currentParts = formData.numero.split("-")
+                      if (currentParts.length >= 3) {
+                        const year = currentParts[0]
+                        const sequence = currentParts[1]
+
+                        // Generate new number with the updated abbreviation
+                        const updatedNumero = `${year}-${sequence}-${abreviatura}`
+
+                        // Update the form data with the new number
+                        dataToSubmit = {
+                          ...dataToSubmit,
+                          numero: updatedNumero,
+                        }
+
+                        console.log(`Tema changed: Updating number from ${formData.numero} to ${updatedNumero}`)
+                      }
+                    }
+
                     // Actualizar expresión existente
                     const { error } = await supabase.from("expresiones").update(dataToSubmit).eq("id", expresion.id)
                     if (error) throw error
