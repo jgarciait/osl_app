@@ -1,7 +1,7 @@
 import type React from "react"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { Toaster } from "@/components/ui/toaster"
+import { ToasterProvider } from "@/components/toaster-provider"
 import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           {/* No envolver todas las rutas con GroupPermissionsProvider */}
           {children}
-          <Toaster />
+          <ToasterProvider />
         </ThemeProvider>
       </body>
     </html>
