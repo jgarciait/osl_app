@@ -47,16 +47,9 @@ export function DocumentosPageClient() {
 
         if (error) throw error
 
-        // Obtener el conteo directo del bucket de almacenamiento
-        const { data: storageCountData, error: storageCountError } = await supabase.rpc("get_storage_object_count", {
-          bucket_name: "documentos",
-        })
-
-        if (storageCountError) {
-          console.error("Error al obtener conteo del bucket:", storageCountError)
-        }
-
-        const storageCount = storageCountData?.[0]?.total_archivos || 0
+        // Temporalmente omitimos el conteo del bucket debido a problemas con la API
+        const storageCount = 0 // Valor temporal
+        console.log("Conteo del bucket temporalmente deshabilitado")
 
         // Obtener etiquetas para cada documento
         const documentosConEtiquetas = await Promise.all(

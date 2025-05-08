@@ -12,13 +12,13 @@ import {
   CheckCircleIcon,
   FilterIcon,
   DownloadIcon,
-  FileIcon,
 } from "lucide-react"
 import Image from "next/image"
 import { SimpleBarChart } from "./simple-bar-chart"
 import { SimplePieChart } from "./simple-pie-chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
+import { File } from "lucide-react"
 
 // Constantes para los meses
 const MONTHS = [
@@ -34,7 +34,6 @@ const MONTHS = [
   { value: "9", label: "Septiembre" },
   { value: "10", label: "Octubre" },
   { value: "11", label: "Noviembre" },
-  { value: "12", label: "Diciembre" },
 ]
 
 export function DashboardCharts() {
@@ -289,18 +288,23 @@ export function DashboardCharts() {
       temasArray.sort((a, b) => (b.value as number) - (a.value as number))
       setTemasData(temasArray)
 
-      // Obtener el conteo de archivos en el bucket "documentos"
-      const { data: filesCount, error: filesError } = await supabase.rpc("get_storage_object_count", {
-        bucket_name: "documentos",
-      })
+      // Obtener el conteo de documentos de expresiones
+      const { data: expresionesDocsCount, error: expresionesDocsError } = await supabase.rpc(
+        "get_expresiones_document_count",
+      )
 
-      if (filesError) {
-        console.error("Error al obtener conteo de archivos:", filesError)
+      if (expresionesDocsError) {
+        console.error("Error al obtener conteo de documentos de expresiones:", expresionesDocsError)
+        // Actualizar el estado con el conteo de archivos
+        setStats((prevStats) => ({
+          ...prevStats,
+          files: 0,
+        }))
       } else {
         // Actualizar el estado con el conteo de archivos
         setStats((prevStats) => ({
           ...prevStats,
-          files: filesCount?.[0]?.total_archivos || 0,
+          files: expresionesDocsCount?.[0]?.total_expresiones || 0,
         }))
       }
     } catch (error) {
@@ -340,6 +344,9 @@ export function DashboardCharts() {
       supabase.removeChannel(channel)
     }
   }, [supabase, selectedYear, selectedMonth])
+
+  // Cargar conteo de documentos al montar el componente
+  useEffect(() => {}, [])
 
   // Calcular porcentajes para las tarjetas
   const activePercentage = stats.total > 0 ? Math.round((stats.active / stats.total) * 100) : 0
@@ -497,13 +504,13 @@ export function DashboardCharts() {
         </Card>
 
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-1 sm:pb-2">
-            <CardTitle className="text-sm font-medium">Documentos Almacenados</CardTitle>
-            <FileIcon className="h-5 w-5 sm:h-6 sm:w-6 text-blue-500" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Documentos de Expresiones</CardTitle>
+            <File className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{stats.files}</div>
-            <p className="text-xs text-muted-foreground">Total de archivos en el sistema</p>
+            <div className="text-2xl font-bold">{stats.files}</div>
+            <p className="text-xs text-muted-foreground">Documentos almacenados</p>
           </CardContent>
         </Card>
       </div>
