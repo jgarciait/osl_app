@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClientClient } from "@/lib/supabase-client"
+import { toast } from "sonner" // Asumiendo que estás usando sonner para los toasts
 
 export function LoginForm({ isLoggedIn = false }) {
   const [email, setEmail] = useState("")
@@ -30,16 +31,42 @@ export function LoginForm({ isLoggedIn = false }) {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // Iniciar sesión con email y password
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        setError(error.message)
+      if (authError) {
+        setError(authError.message)
+        setIsLoading(false)
         return
       }
 
+      // Verificar si el usuario pertenece al departamento con id=1
+      if (authData.user) {
+        const { data: belongsToDept, error: deptError } = await supabase.rpc("user_belongs_to_department", {
+          p_user_id: authData.user.id,
+          p_department_id: 1,
+        })
+
+        if (deptError) {
+          console.error("Error al verificar departamento:", deptError)
+          // Continuar con el login a pesar del error en la verificación
+        } else if (!belongsToDept) {
+          // El usuario no pertenece al departamento requerido
+          await supabase.auth.signOut() // Cerrar la sesión que acabamos de abrir
+          setError("No tienes acceso a este sistema. Contacta al administrador.")
+          setIsLoading(false)
+          return
+        }
+      }
+
+      // Si todo está bien, redirigir al dashboard
+      toast({
+        title: "Inicio de sesión exitoso",
+        description: "Bienvenido al sistema",
+      })
       router.push("/dashboard")
     } catch (err) {
       setError("Ocurrió un error al iniciar sesión. Por favor, inténtelo de nuevo.")
