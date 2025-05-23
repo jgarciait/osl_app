@@ -65,8 +65,7 @@ export function LoginForm({ isLoggedIn = false }) {
       }
 
       // Si todo está bien, redirigir al dashboard
-      toast({
-        title: "Inicio de sesión exitoso",
+      toast.success("Inicio de sesión exitoso", {
         description: "Bienvenido al sistema",
       })
       router.push("/dashboard")
