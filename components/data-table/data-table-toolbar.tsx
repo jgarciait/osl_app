@@ -52,7 +52,14 @@ export function DataTableToolbar<TData>({
         <Input
           placeholder="Buscar..."
           value={globalFilter ?? ""}
-          onChange={(event) => setGlobalFilter?.(event.target.value)}
+          onChange={(event) => {
+            const value = event.target.value
+            setGlobalFilter?.(value)
+            // Si hay texto de búsqueda, limpiar todos los filtros de columna
+            if (value && value.length > 0) {
+              table.resetColumnFilters()
+            }
+          }}
           className="h-8 w-[150px] lg:w-[300px]"
         />
         {isFiltered && (
