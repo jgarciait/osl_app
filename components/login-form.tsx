@@ -56,7 +56,9 @@ export function LoginForm({ isLoggedIn = false }) {
         } else if (!belongsToDept) {
           // El usuario no pertenece al departamento requerido
           await supabase.auth.signOut() // Cerrar la sesión que acabamos de abrir
-          setError("No tienes acceso a este sistema. Contacta al administrador.")
+          setError(
+            "No estás autorizado para usar esta aplicación. Tu usuario no pertenece al departamento requerido. Por favor, contacta al administrador del sistema para solicitar acceso.",
+          )
           setIsLoading(false)
           return
         }
@@ -113,7 +115,11 @@ export function LoginForm({ isLoggedIn = false }) {
           </Button>
         </div>
       </form>
-      {error && <p className="text-sm text-red-500">{error}</p>}
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
     </div>
   )
 }
