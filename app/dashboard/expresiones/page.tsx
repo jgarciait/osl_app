@@ -1,15 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { createClientClient } from "@/lib/supabase-client"
+import { useState, useEffect, useRef } from "react"
+import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
-import { RequestManager } from "@/lib/request-manager"
-
-// Initialize request manager singleton
-const requestManager = new RequestManager()
 
 export default function ExpresionesPage() {
   const [expresiones, setExpresiones] = useState([])
@@ -21,81 +17,53 @@ export default function ExpresionesPage() {
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(0)
-  const [pageSize] = useState(50)
-  const [totalCount, setTotalCount] = useState(0)
-  const [hasNextPage, setHasNextPage] = useState(false)
-
-  // Refs for cleanup
+  // Añadir refs para las suscripciones
   const subscriptions = useRef([])
-  const dataFetched = useRef(false)
 
-  const cleanupSubscriptions = useCallback(() => {
+  // Función para limpiar suscripciones
+  const cleanupSubscriptions = () => {
     subscriptions.current.forEach((subscription) => subscription.unsubscribe())
     subscriptions.current = []
-  }, [])
+  }
 
-  // Memoized function to fetch static data (etiquetas, years)
-  const fetchStaticData = useCallback(async () => {
-    return requestManager.dedupe("static-data", async () => {
+  useEffect(() => {
+    const fetchData = async () => {
       try {
-        console.log("Fetching static data...")
+        setIsLoading(true)
 
-        // Fetch etiquetas and years in parallel
-        const [etiquetasResult, yearsResult] = await Promise.all([
-          supabase.from("etiquetas").select("id, nombre, color"),
-          supabase.from("expresiones").select("ano").order("ano", { ascending: false }),
-        ])
+        // Obtener todas las etiquetas y crear un mapa de ID a nombre
+        const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
 
-        if (etiquetasResult.error) throw etiquetasResult.error
-        if (yearsResult.error) throw yearsResult.error
+        if (etiquetasError) {
+          console.error("Error al obtener etiquetas:", etiquetasError)
+          throw etiquetasError
+        }
 
-        // Process etiquetas map
+        // Crear un mapa de ID a nombre de etiqueta
         const etiquetasMap = {}
-        etiquetasResult.data?.forEach((etiqueta) => {
+        etiquetas.forEach((etiqueta) => {
           etiquetasMap[etiqueta.id] = etiqueta.nombre
         })
 
-        // Get unique years
-        const uniqueYears = [...new Set(yearsResult.data?.map((item) => item.ano) || [])].sort((a, b) => b - a)
+        // Guardar el mapa de etiquetas
+        setTagMap(etiquetasMap)
 
-        console.log("Static data fetched:", { etiquetas: etiquetasResult.data?.length, years: uniqueYears.length })
+        // Obtener los perfiles de usuarios con caché
+        const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
 
-        return { etiquetasMap, uniqueYears }
-      } catch (error) {
-        console.error("Error fetching static data:", error)
-        throw error
-      }
-    })
-  }, [supabase])
+        // Obtener los temas con caché
+        const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
 
-  // Memoized function to fetch expressions with pagination
-  const fetchExpresiones = useCallback(
-    async (page = 0) => {
-      const cacheKey = `expresiones-page-${page}`
+        // Crear un mapa de IDs de usuario a nombres completos
+        const userMap = new Map()
+        profiles?.data?.forEach((profile) => {
+          userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
+        })
 
-      return requestManager.dedupe(cacheKey, async () => {
-        try {
-          console.log(`Fetching expressions page ${page}...`)
-
-          const offset = page * pageSize
-
-          // Get total count (only on first page)
-          if (page === 0) {
-            const { count, error: countError } = await supabase
-              .from("expresiones")
-              .select("*", { count: "exact", head: true })
-
-            if (countError) throw countError
-            setTotalCount(count || 0)
-            setHasNextPage(offset + pageSize < (count || 0))
-          }
-
-          // Get expressions with basic relations
-          const { data, error } = await supabase
-            .from("expresiones")
-            .select(`
+        // Obtener las expresiones con su campo tema
+        const { data, error } = await supabase
+          .from("expresiones")
+          .select(`
             id, 
             nombre, 
             email, 
@@ -110,112 +78,131 @@ export default function ExpresionesPage() {
             assigned_border_color,
             tema
           `)
-            .order("created_at", { ascending: false })
-            .range(offset, offset + pageSize - 1)
+          .order("created_at", { ascending: false })
+        // Removed limit to fetch all expressions
 
-          if (error) throw error
-
-          console.log(`Fetched ${data?.length || 0} expressions for page ${page}`)
-
-          return data || []
-        } catch (error) {
-          console.error(`Error fetching expressions page ${page}:`, error)
+        if (error) {
+          console.error("Error al obtener expresiones:", error)
           throw error
         }
-      })
-    },
-    [supabase, pageSize],
-  )
 
-  // Memoized function to fetch additional data (profiles, temas, etc.)
-  const fetchAdditionalData = useCallback(async () => {
-    return requestManager.dedupe("additional-data", async () => {
-      try {
-        console.log("Fetching additional data...")
+        // Obtener las relaciones entre expresiones y temas
+        const { data: expresionTemas, error: expresionTemasError } = await supabase
+          .from("expresion_temas")
+          .select("expresion_id, tema_id")
 
-        const [profilesResult, temasResult] = await Promise.all([
-          supabase.from("profiles").select("id, nombre, apellido"),
-          supabase.from("temas").select("id, nombre"),
-        ])
+        if (expresionTemasError) {
+          console.error("Error al obtener relaciones expresion-tema:", expresionTemasError)
+          // Continuamos aunque haya error, ya que podemos usar el campo tema directo
+        }
 
-        if (profilesResult.error) throw profilesResult.error
-        if (temasResult.error) throw temasResult.error
+        // Crear un mapa de expresión a temas
+        const expresionTemasMap = new Map()
+        if (expresionTemas) {
+          expresionTemas.forEach((rel) => {
+            if (!expresionTemasMap.has(rel.expresion_id)) {
+              expresionTemasMap.set(rel.expresion_id, [])
+            }
+            expresionTemasMap.get(rel.expresion_id).push(rel.tema_id)
+          })
+        }
 
-        // Create user map
-        const userMap = new Map()
-        profilesResult.data?.forEach((profile) => {
-          userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
-        })
-
-        // Create tema map
+        // Crear un mapa de IDs de tema a nombres
         const temasMap = new Map()
-        temasResult.data?.forEach((tema) => {
+        temas?.data?.forEach((tema) => {
           temasMap.set(tema.id, tema.nombre)
         })
 
-        console.log("Additional data fetched:", {
-          profiles: profilesResult.data?.length,
-          temas: temasResult.data?.length,
-        })
-
-        return { userMap, temasMap }
-      } catch (error) {
-        console.error("Error fetching additional data:", error)
-        throw error
-      }
-    })
-  }, [supabase])
-
-  // Main data fetching effect
-  useEffect(() => {
-    if (dataFetched.current) return
-
-    const loadData = async () => {
-      try {
-        setIsLoading(true)
-        dataFetched.current = true
-
-        console.log("=== Starting data load ===")
-
-        // Load all data in parallel
-        const [staticData, expressionsData, additionalData] = await Promise.all([
-          fetchStaticData(),
-          fetchExpresiones(0),
-          fetchAdditionalData(),
-        ])
-
-        // Set static data
-        setTagMap(staticData.etiquetasMap)
-        setYears(staticData.uniqueYears)
-
-        // Process expressions data
-        const processedData = expressionsData.map((expresion) => {
-          // Get tema name
+        // Procesar los datos para incluir el nombre del tema y el nombre del usuario asignado
+        let processedData = data.map((expresion) => {
+          // Primero intentamos obtener el tema de la relación muchos a muchos
           let tema_nombre = "Sin asignar"
-          if (expresion.tema) {
-            tema_nombre = additionalData.temasMap.get(expresion.tema) || "Sin asignar"
+
+          // Si hay relaciones en expresion_temas, usamos el primer tema relacionado
+          const temasRelacionados = expresionTemasMap.get(expresion.id)
+          if (temasRelacionados && temasRelacionados.length > 0) {
+            const primerTemaId = temasRelacionados[0]
+            tema_nombre = temasMap.get(primerTemaId) || "Sin asignar"
+          }
+          // Si no hay relación, intentamos usar el campo tema directo
+          else if (expresion.tema) {
+            tema_nombre = temasMap.get(expresion.tema) || "Sin asignar"
           }
 
-          // Get assigned user name
-          const assigned_to_name = expresion.assigned_to
-            ? additionalData.userMap.get(expresion.assigned_to) || null
-            : null
+          // Obtener el nombre del usuario asignado si existe
+          const assigned_to_name = expresion.assigned_to ? userMap.get(expresion.assigned_to) || null : null
 
           return {
             ...expresion,
             tema_nombre,
             assigned_to_name,
-            document_tags: [], // Will be loaded separately if needed
-            document_tag_names: [],
           }
         })
 
+        // Después de procesar los datos de expresiones, cargar información de etiquetas
+        if (data && data.length > 0) {
+          // Obtener IDs de todas las expresiones
+          const expresionIds = data.map((exp) => exp.id)
+
+          // Consultar documentos y sus etiquetas para estas expresiones
+          const { data: documentosConEtiquetas, error: documentosError } = await supabase
+            .from("documentos")
+            .select(`
+              id,
+              expresion_id,
+              documento_etiquetas(etiqueta_id)
+            `)
+            .in("expresion_id", expresionIds)
+
+          if (documentosError) {
+            console.error("Error al obtener documentos con etiquetas:", documentosError)
+            throw documentosError
+          }
+
+          // Crear un mapa de expresión a etiquetas
+          const expresionEtiquetasMap = new Map()
+
+          // Procesar los datos para agrupar etiquetas por expresión
+          documentosConEtiquetas.forEach((doc) => {
+            if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
+              const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
+
+              if (!expresionEtiquetasMap.has(doc.expresion_id)) {
+                expresionEtiquetasMap.set(doc.expresion_id, new Set())
+              }
+
+              // Añadir etiquetas al conjunto para esta expresión
+              tagIds.forEach((tagId) => {
+                expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
+              })
+            }
+          })
+
+          // Actualizar los datos procesados con la información de etiquetas
+          processedData = processedData.map((exp) => {
+            const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
+
+            // Convertir IDs a nombres de etiquetas
+            const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
+
+            return {
+              ...exp,
+              document_tags: tagIds,
+              document_tag_names: tagNames,
+            }
+          })
+        }
+
         setExpresiones(processedData)
 
-        console.log("=== Data load complete ===")
-        console.log("Request manager cache info:", requestManager.getCacheInfo())
+        // Obtener años únicos para el filtro
+        const uniqueYears = [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a)
+        setYears(uniqueYears)
+
+        // Configurar suscripciones en tiempo real
+        setupRealtimeSubscriptions(userMap, temasMap, expresionTemasMap)
       } catch (error) {
-        console.error("Error loading data:", error)
+        console.error("Error al cargar datos:", error)
         toast({
           variant: "destructive",
           title: "Error",
@@ -226,36 +213,158 @@ export default function ExpresionesPage() {
       }
     }
 
-    loadData()
+    fetchData()
 
+    // Limpiar suscripciones al desmontar
     return () => {
       cleanupSubscriptions()
     }
-  }, [fetchStaticData, fetchExpresiones, fetchAdditionalData, cleanupSubscriptions, toast])
+  }, [supabase, toast])
 
-  // Memoize props to prevent unnecessary rerenders
-  const memoizedProps = useMemo(
-    () => ({
-      expresiones,
-      years,
-      tagMap,
-    }),
-    [expresiones, years, tagMap],
-  )
+  // Función para configurar suscripciones en tiempo real
+  const setupRealtimeSubscriptions = (userMap, temasMap, expresionTemasMap) => {
+    // Limpiar suscripciones existentes
+    cleanupSubscriptions()
+
+    // Suscribirse a cambios en expresiones
+    const expresionesSubscription = supabase
+      .channel("expresiones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresiones",
+        },
+        (payload) => {
+          console.log("Cambio en expresiones:", payload)
+
+          if (payload.eventType === "INSERT") {
+            // Procesar nueva expresión
+            const newExpresion = payload.new
+
+            // Obtener el nombre del tema
+            let tema_nombre = "Sin asignar"
+            if (newExpresion.tema) {
+              tema_nombre = temasMap.get(newExpresion.tema) || "Sin asignar"
+            }
+
+            // Obtener el nombre del usuario asignado
+            const assigned_to_name = newExpresion.assigned_to ? userMap.get(newExpresion.assigned_to) || null : null
+
+            // Añadir la nueva expresión al estado
+            setExpresiones((prev) => [
+              {
+                ...newExpresion,
+                tema_nombre,
+                assigned_to_name,
+                document_tags: [],
+                document_tag_names: [],
+              },
+              ...prev,
+            ])
+          } else if (payload.eventType === "UPDATE") {
+            // Actualizar expresión existente
+            setExpresiones((prev) =>
+              prev.map((exp) => {
+                if (exp.id === payload.new.id) {
+                  // Obtener el nombre del tema
+                  let tema_nombre = "Sin asignar"
+                  if (payload.new.tema) {
+                    tema_nombre = temasMap.get(payload.new.tema) || "Sin asignar"
+                  }
+
+                  // Obtener el nombre del usuario asignado
+                  const assigned_to_name = payload.new.assigned_to ? userMap.get(payload.new.assigned_to) || null : null
+
+                  return {
+                    ...payload.new,
+                    tema_nombre,
+                    assigned_to_name,
+                    document_tags: exp.document_tags || [],
+                    document_tag_names: exp.document_tag_names || [],
+                  }
+                }
+                return exp
+              }),
+            )
+          } else if (payload.eventType === "DELETE") {
+            // Eliminar expresión
+            setExpresiones((prev) => prev.filter((exp) => exp.id !== payload.old.id))
+          }
+        },
+      )
+      .subscribe()
+
+    // Suscribirse a cambios en expresion_comites
+    const expresionComitesSubscription = supabase
+      .channel("expresion-comites-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresion_comites",
+        },
+        (payload) => {
+          console.log("Cambio en expresion_comites:", payload)
+          // Aquí podrías implementar lógica específica para actualizar las relaciones
+          // entre expresiones y comités si es necesario
+        },
+      )
+      .subscribe()
+
+    // Suscribirse a cambios en expresion_clasificaciones
+    const expresionClasificacionesSubscription = supabase
+      .channel("expresion-clasificaciones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresion_clasificaciones",
+        },
+        (payload) => {
+          console.log("Cambio en expresion_clasificaciones:", payload)
+          // Aquí podrías implementar lógica específica para actualizar las relaciones
+          // entre expresiones y clasificaciones si es necesario
+        },
+      )
+      .subscribe()
+
+    // Suscribirse a cambios en documentos
+    const documentosSubscription = supabase
+      .channel("documentos-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documentos",
+        },
+        (payload) => {
+          console.log("Cambio en documentos:", payload)
+          // Aquí podrías implementar lógica específica para actualizar los documentos
+          // si es necesario en esta vista
+        },
+      )
+      .subscribe()
+
+    // Guardar referencias a las suscripciones para limpiarlas después
+    subscriptions.current = [
+      expresionesSubscription,
+      expresionComitesSubscription,
+      expresionClasificacionesSubscription,
+      documentosSubscription,
+    ]
+  }
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-6">
-        <div className="text-sm text-gray-500">
-          {isLoading ? "Cargando..." : `Mostrando ${expresiones.length} de ${totalCount} expresiones`}
-        </div>
-        {process.env.NODE_ENV === "development" && (
-          <div className="text-xs text-gray-400">Cache: {requestManager.getCacheInfo().cacheSize} items</div>
-        )}
-      </div>
+      <div className="flex justify-between items-center mb-6"></div>
+      <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
 
-      <ExpresionesTable {...memoizedProps} />
-
+      {/* Diálogo para seleccionar números disponibles */}
       <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
     </div>
   )
