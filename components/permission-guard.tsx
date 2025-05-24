@@ -1,37 +1,36 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type React from "react"
+import { memo } from "react"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 interface PermissionGuardProps {
   resource: string
   action: string
-  children: ReactNode
-  fallback?: ReactNode
+  children: React.ReactNode
+  fallback?: React.ReactNode
+  showDebug?: boolean
 }
 
-export function PermissionGuard({ resource, action, children, fallback = null }: PermissionGuardProps) {
-  const { hasPermission, loading, isAdmin, userPermissions } = useGroupPermissions()
+// Memoize the component to prevent unnecessary rerenders
+export const PermissionGuard = memo<PermissionGuardProps>(function PermissionGuard({
+  resource,
+  action,
+  children,
+  fallback = null,
+  showDebug = false,
+}) {
+  const { hasPermission, loading, isAdmin } = useGroupPermissions()
 
-  // Si está cargando, no mostrar nada
   if (loading) {
-    console.log(`[PermissionGuard] Cargando permisos para ${resource}:${action}...`)
-    return null
+    return <div className="animate-pulse bg-gray-200 h-4 w-full rounded" />
   }
 
-  // Logs para depuración
-  console.log(`[PermissionGuard] Verificando permiso ${resource}:${action}`)
-  console.log(`[PermissionGuard] Es admin: ${isAdmin}`)
-  console.log(`[PermissionGuard] Tiene permiso: ${hasPermission(resource, action)}`)
-  console.log(`[PermissionGuard] Permisos disponibles:`, userPermissions)
+  const hasAccess = hasPermission(resource, action)
 
-  // Si el usuario es administrador o tiene el permiso, mostrar los hijos
-  if (isAdmin || hasPermission(resource, action)) {
-    console.log(`[PermissionGuard] Acceso permitido a ${resource}:${action}`)
-    return <>{children}</>
+  if (showDebug) {
+    console.log(`[PERMISSION] ${resource}:${action} = ${hasAccess} (admin: ${isAdmin})`)
   }
 
-  // Si no tiene el permiso, mostrar el fallback
-  console.log(`[PermissionGuard] Acceso denegado a ${resource}:${action}`)
-  return <>{fallback}</>
-}
+  return hasAccess ? <>{children}</> : <>{fallback}</>
+})

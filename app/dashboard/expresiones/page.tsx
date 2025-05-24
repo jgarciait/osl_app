@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
@@ -17,354 +17,229 @@ export default function ExpresionesPage() {
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
-  // Añadir refs para las suscripciones
+  // Use refs to prevent unnecessary rerenders
   const subscriptions = useRef([])
+  const dataFetched = useRef(false)
 
-  // Función para limpiar suscripciones
-  const cleanupSubscriptions = () => {
+  // Memoize the cleanup function
+  const cleanupSubscriptions = useCallback(() => {
     subscriptions.current.forEach((subscription) => subscription.unsubscribe())
     subscriptions.current = []
-  }
+  }, [])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true)
+  // Memoize the fetch function to prevent recreation
+  const fetchData = useCallback(async () => {
+    if (dataFetched.current) return
 
-        // Obtener todas las etiquetas y crear un mapa de ID a nombre
-        const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
+    try {
+      setIsLoading(true)
+      dataFetched.current = true
 
-        if (etiquetasError) {
-          console.error("Error al obtener etiquetas:", etiquetasError)
-          throw etiquetasError
-        }
+      // Get all tags and create a map of ID to name
+      const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
 
-        // Crear un mapa de ID a nombre de etiqueta
-        const etiquetasMap = {}
-        etiquetas.forEach((etiqueta) => {
-          etiquetasMap[etiqueta.id] = etiqueta.nombre
-        })
+      if (etiquetasError) {
+        console.error("Error al obtener etiquetas:", etiquetasError)
+        throw etiquetasError
+      }
 
-        // Guardar el mapa de etiquetas
-        setTagMap(etiquetasMap)
+      // Create tag map
+      const etiquetasMap = {}
+      etiquetas?.forEach((etiqueta) => {
+        etiquetasMap[etiqueta.id] = etiqueta.nombre
+      })
+      setTagMap(etiquetasMap)
 
-        // Obtener los perfiles de usuarios con caché
-        const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
+      // Get user profiles with cache
+      const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
 
-        // Obtener los temas con caché
-        const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
+      // Get themes with cache
+      const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
 
-        // Crear un mapa de IDs de usuario a nombres completos
-        const userMap = new Map()
-        profiles?.data?.forEach((profile) => {
-          userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
-        })
+      // Create user map
+      const userMap = new Map()
+      profiles?.data?.forEach((profile) => {
+        userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
+      })
 
-        // Obtener las expresiones con su campo tema
-        const { data, error } = await supabase
-          .from("expresiones")
+      // Get expressions - FIXED QUERY
+      const { data, error } = await supabase
+        .from("expresiones")
+        .select(`
+          id, 
+          nombre, 
+          email, 
+          numero, 
+          ano, 
+          mes, 
+          archivado, 
+          created_at,
+          assigned_to,
+          assigned_color,
+          assigned_text_color,
+          assigned_border_color,
+          tema
+        `)
+        .order("created_at", { ascending: false })
+
+      console.log("=== DEBUG EXPRESIONES ===")
+      console.log("Raw data from query:", data)
+      console.log("Number of expressions:", data?.length || 0)
+      console.log("Query error:", error)
+      console.log("========================")
+
+      if (error) {
+        console.error("Error al obtener expresiones:", error)
+        throw error
+      }
+
+      // Get expression-tema relationships separately
+      const { data: expresionTemas, error: expresionTemasError } = await supabase
+        .from("expresion_temas")
+        .select("expresion_id, tema_id")
+
+      if (expresionTemasError) {
+        console.error("Error al obtener relaciones expresion-tema:", expresionTemasError)
+      }
+
+      // Get documents and their tags separately
+      let documentosConEtiquetas = []
+      if (data && data.length > 0) {
+        const expresionIds = data.map((exp) => exp.id)
+
+        const { data: docsData, error: docsError } = await supabase
+          .from("documentos")
           .select(`
-            id, 
-            nombre, 
-            email, 
-            numero, 
-            ano, 
-            mes, 
-            archivado, 
-            created_at,
-            assigned_to,
-            assigned_color,
-            assigned_text_color,
-            assigned_border_color,
-            tema
+            id,
+            expresion_id,
+            documento_etiquetas(etiqueta_id)
           `)
-          .order("created_at", { ascending: false })
-        // Removed limit to fetch all expressions
+          .in("expresion_id", expresionIds)
 
-        if (error) {
-          console.error("Error al obtener expresiones:", error)
-          throw error
+        if (docsError) {
+          console.error("Error al obtener documentos:", docsError)
+        } else {
+          documentosConEtiquetas = docsData || []
         }
+      }
 
-        // Obtener las relaciones entre expresiones y temas
-        const { data: expresionTemas, error: expresionTemasError } = await supabase
-          .from("expresion_temas")
-          .select("expresion_id, tema_id")
+      // Create tema map
+      const temasMap = new Map()
+      temas?.data?.forEach((tema) => {
+        temasMap.set(tema.id, tema.nombre)
+      })
 
-        if (expresionTemasError) {
-          console.error("Error al obtener relaciones expresion-tema:", expresionTemasError)
-          // Continuamos aunque haya error, ya que podemos usar el campo tema directo
-        }
+      // Process data to include tema name and assigned user name
+      const expresionTemasMap = new Map()
+      if (expresionTemas) {
+        expresionTemas.forEach((rel) => {
+          if (!expresionTemasMap.has(rel.expresion_id)) {
+            expresionTemasMap.set(rel.expresion_id, [])
+          }
+          expresionTemasMap.get(rel.expresion_id).push(rel.tema_id)
+        })
+      }
 
-        // Crear un mapa de expresión a temas
-        const expresionTemasMap = new Map()
-        if (expresionTemas) {
-          expresionTemas.forEach((rel) => {
-            if (!expresionTemasMap.has(rel.expresion_id)) {
-              expresionTemasMap.set(rel.expresion_id, [])
-            }
-            expresionTemasMap.get(rel.expresion_id).push(rel.tema_id)
+      const temasMap2 = new Map()
+      temas?.data?.forEach((tema) => {
+        temasMap2.set(tema.id, tema.nombre)
+      })
+
+      // Create document tags map
+      const expresionEtiquetasMap = new Map()
+      documentosConEtiquetas.forEach((doc) => {
+        if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
+          const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
+
+          if (!expresionEtiquetasMap.has(doc.expresion_id)) {
+            expresionEtiquetasMap.set(doc.expresion_id, new Set())
+          }
+
+          tagIds.forEach((tagId) => {
+            expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
           })
         }
+      })
 
-        // Crear un mapa de IDs de tema a nombres
-        const temasMap = new Map()
-        temas?.data?.forEach((tema) => {
-          temasMap.set(tema.id, tema.nombre)
-        })
-
-        // Procesar los datos para incluir el nombre del tema y el nombre del usuario asignado
-        let processedData = data.map((expresion) => {
-          // Primero intentamos obtener el tema de la relación muchos a muchos
+      // Process data
+      const processedData =
+        data?.map((expresion) => {
+          // Get tema name
           let tema_nombre = "Sin asignar"
 
-          // Si hay relaciones en expresion_temas, usamos el primer tema relacionado
+          // Try from relationships first
           const temasRelacionados = expresionTemasMap.get(expresion.id)
           if (temasRelacionados && temasRelacionados.length > 0) {
             const primerTemaId = temasRelacionados[0]
-            tema_nombre = temasMap.get(primerTemaId) || "Sin asignar"
+            tema_nombre = temasMap2.get(primerTemaId) || "Sin asignar"
           }
-          // Si no hay relación, intentamos usar el campo tema directo
+          // Fallback to direct tema field
           else if (expresion.tema) {
-            tema_nombre = temasMap.get(expresion.tema) || "Sin asignar"
+            tema_nombre = temasMap2.get(expresion.tema) || "Sin asignar"
           }
 
-          // Obtener el nombre del usuario asignado si existe
+          // Get assigned user name
           const assigned_to_name = expresion.assigned_to ? userMap.get(expresion.assigned_to) || null : null
+
+          // Get document tags
+          const tagIds = expresionEtiquetasMap.has(expresion.id)
+            ? Array.from(expresionEtiquetasMap.get(expresion.id))
+            : []
+          const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
 
           return {
             ...expresion,
             tema_nombre,
             assigned_to_name,
+            document_tags: tagIds,
+            document_tag_names: tagNames,
           }
-        })
+        }) || []
 
-        // Después de procesar los datos de expresiones, cargar información de etiquetas
-        if (data && data.length > 0) {
-          // Obtener IDs de todas las expresiones
-          const expresionIds = data.map((exp) => exp.id)
+      console.log("Processed data:", processedData)
+      console.log("Number of processed expressions:", processedData.length)
 
-          // Consultar documentos y sus etiquetas para estas expresiones
-          const { data: documentosConEtiquetas, error: documentosError } = await supabase
-            .from("documentos")
-            .select(`
-              id,
-              expresion_id,
-              documento_etiquetas(etiqueta_id)
-            `)
-            .in("expresion_id", expresionIds)
+      setExpresiones(processedData)
 
-          if (documentosError) {
-            console.error("Error al obtener documentos con etiquetas:", documentosError)
-            throw documentosError
-          }
-
-          // Crear un mapa de expresión a etiquetas
-          const expresionEtiquetasMap = new Map()
-
-          // Procesar los datos para agrupar etiquetas por expresión
-          documentosConEtiquetas.forEach((doc) => {
-            if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
-              const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
-
-              if (!expresionEtiquetasMap.has(doc.expresion_id)) {
-                expresionEtiquetasMap.set(doc.expresion_id, new Set())
-              }
-
-              // Añadir etiquetas al conjunto para esta expresión
-              tagIds.forEach((tagId) => {
-                expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
-              })
-            }
-          })
-
-          // Actualizar los datos procesados con la información de etiquetas
-          processedData = processedData.map((exp) => {
-            const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
-
-            // Convertir IDs a nombres de etiquetas
-            const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
-
-            return {
-              ...exp,
-              document_tags: tagIds,
-              document_tag_names: tagNames,
-            }
-          })
-        }
-
-        setExpresiones(processedData)
-
-        // Obtener años únicos para el filtro
-        const uniqueYears = [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a)
-        setYears(uniqueYears)
-
-        // Configurar suscripciones en tiempo real
-        setupRealtimeSubscriptions(userMap, temasMap, expresionTemasMap)
-      } catch (error) {
-        console.error("Error al cargar datos:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las expresiones. Por favor, intente nuevamente.",
-        })
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchData()
-
-    // Limpiar suscripciones al desmontar
-    return () => {
-      cleanupSubscriptions()
+      // Get unique years for filter
+      const uniqueYears = [...new Set(data?.map((item) => item.ano) || [])].sort((a, b) => b - a)
+      setYears(uniqueYears)
+    } catch (error) {
+      console.error("Error al cargar datos:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar las expresiones. Por favor, intente nuevamente.",
+      })
+    } finally {
+      setIsLoading(false)
     }
   }, [supabase, toast])
 
-  // Función para configurar suscripciones en tiempo real
-  const setupRealtimeSubscriptions = (userMap, temasMap, expresionTemasMap) => {
-    // Limpiar suscripciones existentes
-    cleanupSubscriptions()
+  // Single useEffect that doesn't cause rerenders
+  useEffect(() => {
+    fetchData()
 
-    // Suscribirse a cambios en expresiones
-    const expresionesSubscription = supabase
-      .channel("expresiones-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "expresiones",
-        },
-        (payload) => {
-          console.log("Cambio en expresiones:", payload)
+    // Cleanup on unmount
+    return () => {
+      cleanupSubscriptions()
+    }
+  }, [fetchData, cleanupSubscriptions])
 
-          if (payload.eventType === "INSERT") {
-            // Procesar nueva expresión
-            const newExpresion = payload.new
-
-            // Obtener el nombre del tema
-            let tema_nombre = "Sin asignar"
-            if (newExpresion.tema) {
-              tema_nombre = temasMap.get(newExpresion.tema) || "Sin asignar"
-            }
-
-            // Obtener el nombre del usuario asignado
-            const assigned_to_name = newExpresion.assigned_to ? userMap.get(newExpresion.assigned_to) || null : null
-
-            // Añadir la nueva expresión al estado
-            setExpresiones((prev) => [
-              {
-                ...newExpresion,
-                tema_nombre,
-                assigned_to_name,
-                document_tags: [],
-                document_tag_names: [],
-              },
-              ...prev,
-            ])
-          } else if (payload.eventType === "UPDATE") {
-            // Actualizar expresión existente
-            setExpresiones((prev) =>
-              prev.map((exp) => {
-                if (exp.id === payload.new.id) {
-                  // Obtener el nombre del tema
-                  let tema_nombre = "Sin asignar"
-                  if (payload.new.tema) {
-                    tema_nombre = temasMap.get(payload.new.tema) || "Sin asignar"
-                  }
-
-                  // Obtener el nombre del usuario asignado
-                  const assigned_to_name = payload.new.assigned_to ? userMap.get(payload.new.assigned_to) || null : null
-
-                  return {
-                    ...payload.new,
-                    tema_nombre,
-                    assigned_to_name,
-                    document_tags: exp.document_tags || [],
-                    document_tag_names: exp.document_tag_names || [],
-                  }
-                }
-                return exp
-              }),
-            )
-          } else if (payload.eventType === "DELETE") {
-            // Eliminar expresión
-            setExpresiones((prev) => prev.filter((exp) => exp.id !== payload.old.id))
-          }
-        },
-      )
-      .subscribe()
-
-    // Suscribirse a cambios en expresion_comites
-    const expresionComitesSubscription = supabase
-      .channel("expresion-comites-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "expresion_comites",
-        },
-        (payload) => {
-          console.log("Cambio en expresion_comites:", payload)
-          // Aquí podrías implementar lógica específica para actualizar las relaciones
-          // entre expresiones y comités si es necesario
-        },
-      )
-      .subscribe()
-
-    // Suscribirse a cambios en expresion_clasificaciones
-    const expresionClasificacionesSubscription = supabase
-      .channel("expresion-clasificaciones-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "expresion_clasificaciones",
-        },
-        (payload) => {
-          console.log("Cambio en expresion_clasificaciones:", payload)
-          // Aquí podrías implementar lógica específica para actualizar las relaciones
-          // entre expresiones y clasificaciones si es necesario
-        },
-      )
-      .subscribe()
-
-    // Suscribirse a cambios en documentos
-    const documentosSubscription = supabase
-      .channel("documentos-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "documentos",
-        },
-        (payload) => {
-          console.log("Cambio en documentos:", payload)
-          // Aquí podrías implementar lógica específica para actualizar los documentos
-          // si es necesario en esta vista
-        },
-      )
-      .subscribe()
-
-    // Guardar referencias a las suscripciones para limpiarlas después
-    subscriptions.current = [
-      expresionesSubscription,
-      expresionComitesSubscription,
-      expresionClasificacionesSubscription,
-      documentosSubscription,
-    ]
-  }
+  // Memoize the component props to prevent unnecessary rerenders
+  const memoizedProps = useMemo(
+    () => ({
+      expresiones,
+      years,
+      tagMap,
+    }),
+    [expresiones, years, tagMap],
+  )
 
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-6"></div>
-      <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
-
-      {/* Diálogo para seleccionar números disponibles */}
+      <ExpresionesTable {...memoizedProps} />
       <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
     </div>
   )
