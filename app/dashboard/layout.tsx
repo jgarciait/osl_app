@@ -1,7 +1,7 @@
 import type React from "react"
 import { AppSidebar, SidebarProvider } from "@/components/app-sidebar"
 import { ProtectedRoute } from "@/components/protected-route"
-import { PermissionsProvider } from "@/hooks/use-group-permissions"
+import { GroupPermissionsProvider } from "@/hooks/use-group-permissions"
 import { DashboardHeader } from "@/components/dashboard-header"
 
 export default function DashboardLayout({
@@ -10,7 +10,7 @@ export default function DashboardLayout({
   children: React.ReactNode
 }) {
   return (
-    <PermissionsProvider>
+    <GroupPermissionsProvider>
       <SidebarProvider>
         <ProtectedRoute>
           <div className="flex h-screen overflow-auto w-full">
@@ -22,6 +22,6 @@ export default function DashboardLayout({
           </div>
         </ProtectedRoute>
       </SidebarProvider>
-    </PermissionsProvider>
+    </GroupPermissionsProvider>
   )
 }

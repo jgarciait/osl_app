@@ -1,36 +1,37 @@
 "use client"
 
-import type React from "react"
-import { memo } from "react"
+import type { ReactNode } from "react"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
 interface PermissionGuardProps {
   resource: string
   action: string
-  children: React.ReactNode
-  fallback?: React.ReactNode
-  showDebug?: boolean
+  children: ReactNode
+  fallback?: ReactNode
 }
 
-// Memoize the component to prevent unnecessary rerenders
-export const PermissionGuard = memo<PermissionGuardProps>(function PermissionGuard({
-  resource,
-  action,
-  children,
-  fallback = null,
-  showDebug = false,
-}) {
-  const { hasPermission, loading, isAdmin } = useGroupPermissions()
+export function PermissionGuard({ resource, action, children, fallback = null }: PermissionGuardProps) {
+  const { hasPermission, loading, isAdmin, userPermissions } = useGroupPermissions()
 
+  // Si está cargando, no mostrar nada
   if (loading) {
-    return <div className="animate-pulse bg-gray-200 h-4 w-full rounded" />
+    console.log(`[PermissionGuard] Cargando permisos para ${resource}:${action}...`)
+    return null
   }
 
-  const hasAccess = hasPermission(resource, action)
+  // Logs para depuración
+  console.log(`[PermissionGuard] Verificando permiso ${resource}:${action}`)
+  console.log(`[PermissionGuard] Es admin: ${isAdmin}`)
+  console.log(`[PermissionGuard] Tiene permiso: ${hasPermission(resource, action)}`)
+  console.log(`[PermissionGuard] Permisos disponibles:`, userPermissions)
 
-  if (showDebug) {
-    console.log(`[PERMISSION] ${resource}:${action} = ${hasAccess} (admin: ${isAdmin})`)
+  // Si el usuario es administrador o tiene el permiso, mostrar los hijos
+  if (isAdmin || hasPermission(resource, action)) {
+    console.log(`[PermissionGuard] Acceso permitido a ${resource}:${action}`)
+    return <>{children}</>
   }
 
-  return hasAccess ? <>{children}</> : <>{fallback}</>
-})
+  // Si no tiene el permiso, mostrar el fallback
+  console.log(`[PermissionGuard] Acceso denegado a ${resource}:${action}`)
+  return <>{fallback}</>
+}

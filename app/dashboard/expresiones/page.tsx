@@ -1,11 +1,15 @@
 "use client"
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { createClientClient, cachedQuery } from "@/lib/supabase-client"
+import { createClientClient } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
+import { RequestManager } from "@/lib/request-manager"
+
+// Initialize request manager singleton
+const requestManager = new RequestManager()
 
 export default function ExpresionesPage() {
   const [expresiones, setExpresiones] = useState([])
@@ -17,216 +21,219 @@ export default function ExpresionesPage() {
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
-  // Use refs to prevent unnecessary rerenders
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(0)
+  const [pageSize] = useState(50)
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasNextPage, setHasNextPage] = useState(false)
+
+  // Refs for cleanup
   const subscriptions = useRef([])
   const dataFetched = useRef(false)
 
-  // Memoize the cleanup function
   const cleanupSubscriptions = useCallback(() => {
     subscriptions.current.forEach((subscription) => subscription.unsubscribe())
     subscriptions.current = []
   }, [])
 
-  // Memoize the fetch function to prevent recreation
-  const fetchData = useCallback(async () => {
-    if (dataFetched.current) return
+  // Memoized function to fetch static data (etiquetas, years)
+  const fetchStaticData = useCallback(async () => {
+    return requestManager.dedupe("static-data", async () => {
+      try {
+        console.log("Fetching static data...")
 
-    try {
-      setIsLoading(true)
-      dataFetched.current = true
+        // Fetch etiquetas and years in parallel
+        const [etiquetasResult, yearsResult] = await Promise.all([
+          supabase.from("etiquetas").select("id, nombre, color"),
+          supabase.from("expresiones").select("ano").order("ano", { ascending: false }),
+        ])
 
-      // Get all tags and create a map of ID to name
-      const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
+        if (etiquetasResult.error) throw etiquetasResult.error
+        if (yearsResult.error) throw yearsResult.error
 
-      if (etiquetasError) {
-        console.error("Error al obtener etiquetas:", etiquetasError)
-        throw etiquetasError
-      }
+        // Process etiquetas map
+        const etiquetasMap = {}
+        etiquetasResult.data?.forEach((etiqueta) => {
+          etiquetasMap[etiqueta.id] = etiqueta.nombre
+        })
 
-      // Create tag map
-      const etiquetasMap = {}
-      etiquetas?.forEach((etiqueta) => {
-        etiquetasMap[etiqueta.id] = etiqueta.nombre
-      })
-      setTagMap(etiquetasMap)
+        // Get unique years
+        const uniqueYears = [...new Set(yearsResult.data?.map((item) => item.ano) || [])].sort((a, b) => b - a)
 
-      // Get user profiles with cache
-      const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
+        console.log("Static data fetched:", { etiquetas: etiquetasResult.data?.length, years: uniqueYears.length })
 
-      // Get themes with cache
-      const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
-
-      // Create user map
-      const userMap = new Map()
-      profiles?.data?.forEach((profile) => {
-        userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
-      })
-
-      // Get expressions - FIXED QUERY
-      const { data, error } = await supabase
-        .from("expresiones")
-        .select(`
-          id, 
-          nombre, 
-          email, 
-          numero, 
-          ano, 
-          mes, 
-          archivado, 
-          created_at,
-          assigned_to,
-          assigned_color,
-          assigned_text_color,
-          assigned_border_color,
-          tema
-        `)
-        .order("created_at", { ascending: false })
-
-      console.log("=== DEBUG EXPRESIONES ===")
-      console.log("Raw data from query:", data)
-      console.log("Number of expressions:", data?.length || 0)
-      console.log("Query error:", error)
-      console.log("========================")
-
-      if (error) {
-        console.error("Error al obtener expresiones:", error)
+        return { etiquetasMap, uniqueYears }
+      } catch (error) {
+        console.error("Error fetching static data:", error)
         throw error
       }
+    })
+  }, [supabase])
 
-      // Get expression-tema relationships separately
-      const { data: expresionTemas, error: expresionTemasError } = await supabase
-        .from("expresion_temas")
-        .select("expresion_id, tema_id")
+  // Memoized function to fetch expressions with pagination
+  const fetchExpresiones = useCallback(
+    async (page = 0) => {
+      const cacheKey = `expresiones-page-${page}`
 
-      if (expresionTemasError) {
-        console.error("Error al obtener relaciones expresion-tema:", expresionTemasError)
-      }
+      return requestManager.dedupe(cacheKey, async () => {
+        try {
+          console.log(`Fetching expressions page ${page}...`)
 
-      // Get documents and their tags separately
-      let documentosConEtiquetas = []
-      if (data && data.length > 0) {
-        const expresionIds = data.map((exp) => exp.id)
+          const offset = page * pageSize
 
-        const { data: docsData, error: docsError } = await supabase
-          .from("documentos")
-          .select(`
-            id,
-            expresion_id,
-            documento_etiquetas(etiqueta_id)
+          // Get total count (only on first page)
+          if (page === 0) {
+            const { count, error: countError } = await supabase
+              .from("expresiones")
+              .select("*", { count: "exact", head: true })
+
+            if (countError) throw countError
+            setTotalCount(count || 0)
+            setHasNextPage(offset + pageSize < (count || 0))
+          }
+
+          // Get expressions with basic relations
+          const { data, error } = await supabase
+            .from("expresiones")
+            .select(`
+            id, 
+            nombre, 
+            email, 
+            numero, 
+            ano, 
+            mes, 
+            archivado, 
+            created_at,
+            assigned_to,
+            assigned_color,
+            assigned_text_color,
+            assigned_border_color,
+            tema
           `)
-          .in("expresion_id", expresionIds)
+            .order("created_at", { ascending: false })
+            .range(offset, offset + pageSize - 1)
 
-        if (docsError) {
-          console.error("Error al obtener documentos:", docsError)
-        } else {
-          documentosConEtiquetas = docsData || []
+          if (error) throw error
+
+          console.log(`Fetched ${data?.length || 0} expressions for page ${page}`)
+
+          return data || []
+        } catch (error) {
+          console.error(`Error fetching expressions page ${page}:`, error)
+          throw error
         }
-      }
-
-      // Create tema map
-      const temasMap = new Map()
-      temas?.data?.forEach((tema) => {
-        temasMap.set(tema.id, tema.nombre)
       })
+    },
+    [supabase, pageSize],
+  )
 
-      // Process data to include tema name and assigned user name
-      const expresionTemasMap = new Map()
-      if (expresionTemas) {
-        expresionTemas.forEach((rel) => {
-          if (!expresionTemasMap.has(rel.expresion_id)) {
-            expresionTemasMap.set(rel.expresion_id, [])
-          }
-          expresionTemasMap.get(rel.expresion_id).push(rel.tema_id)
+  // Memoized function to fetch additional data (profiles, temas, etc.)
+  const fetchAdditionalData = useCallback(async () => {
+    return requestManager.dedupe("additional-data", async () => {
+      try {
+        console.log("Fetching additional data...")
+
+        const [profilesResult, temasResult] = await Promise.all([
+          supabase.from("profiles").select("id, nombre, apellido"),
+          supabase.from("temas").select("id, nombre"),
+        ])
+
+        if (profilesResult.error) throw profilesResult.error
+        if (temasResult.error) throw temasResult.error
+
+        // Create user map
+        const userMap = new Map()
+        profilesResult.data?.forEach((profile) => {
+          userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
         })
+
+        // Create tema map
+        const temasMap = new Map()
+        temasResult.data?.forEach((tema) => {
+          temasMap.set(tema.id, tema.nombre)
+        })
+
+        console.log("Additional data fetched:", {
+          profiles: profilesResult.data?.length,
+          temas: temasResult.data?.length,
+        })
+
+        return { userMap, temasMap }
+      } catch (error) {
+        console.error("Error fetching additional data:", error)
+        throw error
       }
+    })
+  }, [supabase])
 
-      const temasMap2 = new Map()
-      temas?.data?.forEach((tema) => {
-        temasMap2.set(tema.id, tema.nombre)
-      })
+  // Main data fetching effect
+  useEffect(() => {
+    if (dataFetched.current) return
 
-      // Create document tags map
-      const expresionEtiquetasMap = new Map()
-      documentosConEtiquetas.forEach((doc) => {
-        if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
-          const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
+    const loadData = async () => {
+      try {
+        setIsLoading(true)
+        dataFetched.current = true
 
-          if (!expresionEtiquetasMap.has(doc.expresion_id)) {
-            expresionEtiquetasMap.set(doc.expresion_id, new Set())
-          }
+        console.log("=== Starting data load ===")
 
-          tagIds.forEach((tagId) => {
-            expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
-          })
-        }
-      })
+        // Load all data in parallel
+        const [staticData, expressionsData, additionalData] = await Promise.all([
+          fetchStaticData(),
+          fetchExpresiones(0),
+          fetchAdditionalData(),
+        ])
 
-      // Process data
-      const processedData =
-        data?.map((expresion) => {
+        // Set static data
+        setTagMap(staticData.etiquetasMap)
+        setYears(staticData.uniqueYears)
+
+        // Process expressions data
+        const processedData = expressionsData.map((expresion) => {
           // Get tema name
           let tema_nombre = "Sin asignar"
-
-          // Try from relationships first
-          const temasRelacionados = expresionTemasMap.get(expresion.id)
-          if (temasRelacionados && temasRelacionados.length > 0) {
-            const primerTemaId = temasRelacionados[0]
-            tema_nombre = temasMap2.get(primerTemaId) || "Sin asignar"
-          }
-          // Fallback to direct tema field
-          else if (expresion.tema) {
-            tema_nombre = temasMap2.get(expresion.tema) || "Sin asignar"
+          if (expresion.tema) {
+            tema_nombre = additionalData.temasMap.get(expresion.tema) || "Sin asignar"
           }
 
           // Get assigned user name
-          const assigned_to_name = expresion.assigned_to ? userMap.get(expresion.assigned_to) || null : null
-
-          // Get document tags
-          const tagIds = expresionEtiquetasMap.has(expresion.id)
-            ? Array.from(expresionEtiquetasMap.get(expresion.id))
-            : []
-          const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
+          const assigned_to_name = expresion.assigned_to
+            ? additionalData.userMap.get(expresion.assigned_to) || null
+            : null
 
           return {
             ...expresion,
             tema_nombre,
             assigned_to_name,
-            document_tags: tagIds,
-            document_tag_names: tagNames,
+            document_tags: [], // Will be loaded separately if needed
+            document_tag_names: [],
           }
-        }) || []
+        })
 
-      console.log("Processed data:", processedData)
-      console.log("Number of processed expressions:", processedData.length)
+        setExpresiones(processedData)
 
-      setExpresiones(processedData)
-
-      // Get unique years for filter
-      const uniqueYears = [...new Set(data?.map((item) => item.ano) || [])].sort((a, b) => b - a)
-      setYears(uniqueYears)
-    } catch (error) {
-      console.error("Error al cargar datos:", error)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "No se pudieron cargar las expresiones. Por favor, intente nuevamente.",
-      })
-    } finally {
-      setIsLoading(false)
+        console.log("=== Data load complete ===")
+        console.log("Request manager cache info:", requestManager.getCacheInfo())
+      } catch (error) {
+        console.error("Error loading data:", error)
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudieron cargar las expresiones. Por favor, intente nuevamente.",
+        })
+      } finally {
+        setIsLoading(false)
+      }
     }
-  }, [supabase, toast])
 
-  // Single useEffect that doesn't cause rerenders
-  useEffect(() => {
-    fetchData()
+    loadData()
 
-    // Cleanup on unmount
     return () => {
       cleanupSubscriptions()
     }
-  }, [fetchData, cleanupSubscriptions])
+  }, [fetchStaticData, fetchExpresiones, fetchAdditionalData, cleanupSubscriptions, toast])
 
-  // Memoize the component props to prevent unnecessary rerenders
+  // Memoize props to prevent unnecessary rerenders
   const memoizedProps = useMemo(
     () => ({
       expresiones,
@@ -238,8 +245,17 @@ export default function ExpresionesPage() {
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-6"></div>
+      <div className="flex justify-between items-center mb-6">
+        <div className="text-sm text-gray-500">
+          {isLoading ? "Cargando..." : `Mostrando ${expresiones.length} de ${totalCount} expresiones`}
+        </div>
+        {process.env.NODE_ENV === "development" && (
+          <div className="text-xs text-gray-400">Cache: {requestManager.getCacheInfo().cacheSize} items</div>
+        )}
+      </div>
+
       <ExpresionesTable {...memoizedProps} />
+
       <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
     </div>
   )

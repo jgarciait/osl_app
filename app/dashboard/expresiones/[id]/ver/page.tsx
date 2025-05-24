@@ -1,7 +1,7 @@
 import { createServerClient } from "@/lib/supabase-server"
-import { OptimizedExpresionForm } from "@/components/optimized-expresion-form"
+import { ExpresionForm } from "@/components/expresion-form"
 import { notFound } from "next/navigation"
-import { OptimizedPermissionGuard } from "@/components/optimized-permission-guard"
+import { PermissionGuard } from "@/components/permission-guard"
 
 export default async function VerExpresionPage({
   params,
@@ -10,42 +10,68 @@ export default async function VerExpresionPage({
 }) {
   const supabase = createServerClient()
 
-  // Single optimized query with all related data
-  const { data: expresionData, error } = await supabase
-    .from("view_expresiones_complete")
-    .select("*")
+  // Fetch expression data
+  const { data: expresion, error } = await supabase
+    .from("expresiones")
+    .select(`
+      *,
+      expresion_comites(
+        comite_id
+      )
+    `)
     .eq("id", params.id)
     .single()
 
-  if (error || !expresionData) {
+  if (error || !expresion) {
     notFound()
   }
 
-  // Get all reference data in parallel
-  const [{ data: comites }, { data: temas }, { data: clasificaciones }] = await Promise.all([
-    supabase.from("comites").select("*").order("nombre"),
-    supabase.from("temas").select("*").order("nombre"),
-    supabase.from("clasificaciones").select("*").order("nombre"),
-  ])
+  // Fetch committees for the form
+  const { data: comites } = await supabase.from("comites").select("*").order("nombre")
+
+  // Fetch temas for the form
+  const { data: temas } = await supabase.from("temas").select("*").order("nombre")
+
+  // Obtener todas las clasificaciones
+  const { data: clasificaciones, error: clasificacionesError } = await supabase
+    .from("clasificaciones")
+    .select("*")
+    .order("nombre", { ascending: true })
+
+  if (clasificacionesError) {
+    console.error("Error fetching clasificaciones:", clasificacionesError)
+  }
+
+  // Obtener las clasificaciones asignadas a esta expresión
+  const { data: expresionClasificaciones, error: expresionClasificacionesError } = await supabase
+    .from("expresion_clasificaciones")
+    .select("clasificacion_id")
+    .eq("expresion_id", params.id)
+
+  if (expresionClasificacionesError) {
+    console.error("Error fetching expresion clasificaciones:", expresionClasificacionesError)
+  }
+
+  // Extraer los IDs de clasificaciones
+  const selectedClasificacionIds = expresionClasificaciones?.map((item) => item.clasificacion_id) || []
+
+  // Extract committee IDs
+  const comiteIds = expresion.expresion_comites.map((ec) => ec.comite_id)
 
   return (
-    <OptimizedPermissionGuard
-      resource="expressions"
-      action="view"
-      fallback={<p>No tiene permiso para ver expresiones.</p>}
-    >
+    <PermissionGuard resource="expressions" action="view" fallback={<p>No tiene permiso para ver expresiones.</p>}>
       <div className="w-full py-6 px-4">
-        <OptimizedExpresionForm
-          expresion={expresionData}
+        <ExpresionForm
+          expresion={expresion}
           comites={comites || []}
           temas={temas || []}
           clasificaciones={clasificaciones || []}
-          selectedComiteIds={expresionData.comite_ids || []}
-          selectedClasificacionIds={expresionData.clasificacion_ids || []}
+          selectedComiteIds={comiteIds}
+          selectedClasificacionIds={selectedClasificacionIds}
           isEditing={false}
           readOnly={true}
         />
       </div>
-    </OptimizedPermissionGuard>
+    </PermissionGuard>
   )
 }
