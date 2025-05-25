@@ -25,6 +25,8 @@ import {
   FileDown,
   Eye,
   ArrowUpDown,
+  Wifi,
+  WifiOff,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -414,6 +416,10 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
   const [tagOptions, setTagOptions] = useState([])
   const [globalFilter, setGlobalFilter] = useState("")
 
+  // Estados para Realtime
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false)
+  const [realtimeStatus, setRealtimeStatus] = useState<"CONNECTING" | "OPEN" | "CLOSED">("CLOSED")
+
   // Ref para controlar las solicitudes de datos
   const isDataFetched = useRef(false)
 
@@ -426,98 +432,219 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
     realtimeSubscriptions.current = []
   }
 
-  // Añadir este useEffect para configurar suscripciones en tiempo real
+  // Función para obtener datos adicionales de una expresión
+  const enrichExpresionData = useCallback(
+    async (expresion) => {
+      try {
+        // Obtener datos del tema si existe
+        let tema_nombre = "Sin asignar"
+        if (expresion.tema) {
+          const { data: temaData } = await supabase.from("temas").select("nombre").eq("id", expresion.tema).single()
+
+          if (temaData) {
+            tema_nombre = temaData.nombre
+          }
+        }
+
+        // Obtener datos del usuario asignado si existe
+        let assigned_to_name = null
+        if (expresion.assigned_to) {
+          const { data: userData } = await supabase
+            .from("profiles")
+            .select("nombre, apellido")
+            .eq("id", expresion.assigned_to)
+            .single()
+
+          if (userData) {
+            assigned_to_name = `${userData.nombre} ${userData.apellido}`
+          }
+        }
+
+        return {
+          ...expresion,
+          tema_nombre,
+          assigned_to_name,
+          document_tags: [],
+          document_tag_names: [],
+        }
+      } catch (error) {
+        console.error("Error enriching expression data:", error)
+        return {
+          ...expresion,
+          tema_nombre: "Sin asignar",
+          assigned_to_name: null,
+          document_tags: [],
+          document_tag_names: [],
+        }
+      }
+    },
+    [supabase],
+  )
+
+  // Configurar suscripciones en tiempo real
   useEffect(() => {
-    // Configurar suscripciones en tiempo real para las tablas relacionadas
     const setupRealtimeSubscriptions = () => {
       // Limpiar suscripciones existentes
       cleanupRealtimeSubscriptions()
 
-      // Suscribirse a cambios en document_etiquetas
-      const documentEtiquetasSubscription = supabase
-        .channel("document-etiquetas-changes")
+      console.log("Configurando suscripciones realtime...")
+
+      // Suscripción principal para expresiones
+      const expresionesChannel = supabase
+        .channel("expresiones-realtime")
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "documento_etiquetas",
+            table: "expresiones",
+          },
+          async (payload) => {
+            console.log("Cambio en expresiones:", payload)
+
+            const { eventType, new: newRecord, old: oldRecord } = payload
+
+            switch (eventType) {
+              case "INSERT":
+                if (newRecord) {
+                  const enrichedExpresion = await enrichExpresionData(newRecord)
+                  setExpresiones((prev) => [enrichedExpresion, ...prev])
+
+                  toast({
+                    title: "Nueva expresión",
+                    description: `Se ha creado la expresión ${newRecord.numero}`,
+                  })
+                }
+                break
+
+              case "UPDATE":
+                if (newRecord) {
+                  const enrichedExpresion = await enrichExpresionData(newRecord)
+                  setExpresiones((prev) => prev.map((exp) => (exp.id === newRecord.id ? enrichedExpresion : exp)))
+
+                  // Solo mostrar notificación si no es el usuario actual quien hizo el cambio
+                  if (currentUser && newRecord.updated_by !== currentUser.id) {
+                    toast({
+                      title: "Expresión actualizada",
+                      description: `La expresión ${newRecord.numero} ha sido modificada`,
+                    })
+                  }
+                }
+                break
+
+              case "DELETE":
+                if (oldRecord) {
+                  setExpresiones((prev) => prev.filter((exp) => exp.id !== oldRecord.id))
+
+                  toast({
+                    title: "Expresión eliminada",
+                    description: `La expresión ${oldRecord.numero} ha sido eliminada`,
+                    variant: "destructive",
+                  })
+                }
+                break
+            }
+          },
+        )
+        .on("presence", { event: "sync" }, () => {
+          console.log("Presencia sincronizada")
+        })
+        .on("presence", { event: "join" }, ({ key, newPresences }) => {
+          console.log("Usuario conectado:", key, newPresences)
+        })
+        .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
+          console.log("Usuario desconectado:", key, leftPresences)
+        })
+        .subscribe((status) => {
+          console.log("Estado de suscripción expresiones:", status)
+          setRealtimeStatus(status)
+          setIsRealtimeConnected(status === "SUBSCRIBED")
+
+          if (status === "SUBSCRIBED") {
+            toast({
+              title: "Conectado en tiempo real",
+              description: "Los cambios se actualizarán automáticamente",
+            })
+          } else if (status === "CLOSED") {
+            toast({
+              title: "Desconectado",
+              description: "La conexión en tiempo real se ha perdido",
+              variant: "destructive",
+            })
+          }
+        })
+
+      // Suscripción para cambios en temas
+      const temasChannel = supabase
+        .channel("temas-realtime")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "temas",
           },
           (payload) => {
-            console.log("Cambio en documento_etiquetas:", payload)
-            // Si estamos viendo documentos de una expresión específica,
-            // podríamos actualizar las etiquetas aquí
+            console.log("Cambio en temas:", payload)
+            // Actualizar las expresiones que usen este tema
+            const { eventType, new: newRecord, old: oldRecord } = payload
+
+            if (eventType === "UPDATE" && newRecord) {
+              setExpresiones((prev) =>
+                prev.map((exp) => (exp.tema === newRecord.id ? { ...exp, tema_nombre: newRecord.nombre } : exp)),
+              )
+            }
           },
         )
         .subscribe()
 
-      // Suscribirse a cambios en etiquetas
-      const etiquetasSubscription = supabase
-        .channel("etiquetas-changes")
+      // Suscripción para cambios en profiles (usuarios asignados)
+      const profilesChannel = supabase
+        .channel("profiles-realtime")
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "etiquetas",
+            table: "profiles",
           },
           (payload) => {
-            console.log("Cambio en etiquetas:", payload)
-            // Actualizar las etiquetas si cambian sus nombres o colores
-          },
-        )
-        .subscribe()
+            console.log("Cambio en profiles:", payload)
+            const { eventType, new: newRecord, old: oldRecord } = payload
 
-      // Suscribirse a cambios en clasificaciones
-      const clasificacionesSubscription = supabase
-        .channel("clasificaciones-changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "clasificaciones",
-          },
-          (payload) => {
-            console.log("Cambio en clasificaciones:", payload)
-            // Actualizar las clasificaciones si cambian
-          },
-        )
-        .subscribe()
-
-      // Suscribirse a cambios en comites
-      const comitesSubscription = supabase
-        .channel("comites-changes")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "comites",
-          },
-          (payload) => {
-            console.log("Cambio en comites:", payload)
-            // Actualizar los comités si cambian
+            if (eventType === "UPDATE" && newRecord) {
+              const fullName = `${newRecord.nombre} ${newRecord.apellido}`
+              setExpresiones((prev) =>
+                prev.map((exp) => (exp.assigned_to === newRecord.id ? { ...exp, assigned_to_name: fullName } : exp)),
+              )
+            }
           },
         )
         .subscribe()
 
       // Guardar referencias a las suscripciones
-      realtimeSubscriptions.current = [
-        documentEtiquetasSubscription,
-        etiquetasSubscription,
-        clasificacionesSubscription,
-        comitesSubscription,
-      ]
+      realtimeSubscriptions.current = [expresionesChannel, temasChannel, profilesChannel]
+
+      // Configurar presencia del usuario actual
+      if (currentUser) {
+        expresionesChannel.track({
+          user_id: currentUser.id,
+          user_name: `${currentUser.nombre} ${currentUser.apellido}`,
+          online_at: new Date().toISOString(),
+        })
+      }
     }
 
-    setupRealtimeSubscriptions()
+    // Solo configurar si tenemos datos iniciales
+    if (expresionesData.length > 0) {
+      setupRealtimeSubscriptions()
+    }
 
     // Limpiar suscripciones al desmontar
     return () => {
       cleanupRealtimeSubscriptions()
     }
-  }, [supabase])
+  }, [supabase, currentUser, expresionesData.length, enrichExpresionData, toast])
 
   // Actualizar expresionesData cuando cambian las expresiones recibidas como prop
   useEffect(() => {
@@ -1169,6 +1296,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       let updateData = {
         assigned_to: assignedTo,
         updated_at: new Date().toISOString(), // Asegurar que se actualiza el timestamp
+        updated_by: currentUser?.id, // Añadir quién hizo el cambio
       }
 
       // Si hay un usuario asignado, buscar si ya tiene un color asignado
@@ -1212,41 +1340,12 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
 
       console.log("Respuesta de actualización:", data)
 
-      // Obtener el nombre del usuario asignado
-      let assignedToName = null
-      if (assignedTo) {
-        const assignedUser = users.find((u) => u.id === assignedTo)
-        if (assignedUser) {
-          assignedToName = `${assignedUser.nombre} ${assignedUser.apellido}`
-        }
-      }
-
       toast({
         title: assignedTo ? "Expresión asignada" : "Asignación removida",
         description: assignedTo
           ? "La expresión ha sido asignada exitosamente"
           : "Se ha removido la asignación de la expresión",
       })
-
-      // Actualizar los datos localmente
-      setExpresiones((prev) =>
-        prev.map((exp) =>
-          exp.id === expressionToAssign.id
-            ? {
-                ...exp,
-                assigned_to: assignedTo,
-                assigned_to_name: assignedToName,
-                ...(updateData.assigned_color
-                  ? {
-                      assigned_color: updateData.assigned_color,
-                      assigned_text_color: updateData.assigned_text_color,
-                      assigned_border_color: updateData.assigned_border_color,
-                    }
-                  : {}),
-              }
-            : exp,
-        ),
-      )
 
       setIsAssignDialogOpen(false)
       setSelectedUser(null)
@@ -1298,7 +1397,13 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       }
 
       // Actualizar todas las expresiones asignadas a este usuario
-      const { error } = await supabase.from("expresiones").update(colorValues).eq("assigned_to", assignedUserId)
+      const { error } = await supabase
+        .from("expresiones")
+        .update({
+          ...colorValues,
+          updated_by: currentUser?.id,
+        })
+        .eq("assigned_to", assignedUserId)
 
       if (error) throw error
 
@@ -1306,18 +1411,6 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
         title: "Color actualizado",
         description: "El color ha sido actualizado para todas las expresiones asignadas a este usuario",
       })
-
-      // Actualizar los datos localmente
-      setExpresiones((prev) =>
-        prev.map((exp) =>
-          exp.assigned_to === assignedUserId
-            ? {
-                ...exp,
-                ...colorValues,
-              }
-            : exp,
-        ),
-      )
 
       setIsColorDialogOpen(false)
     } catch (error) {
@@ -1507,8 +1600,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
         description: "La expresión ha sido eliminada exitosamente",
       })
 
-      // Refrescar la página para mostrar los cambios
-      router.refresh()
+      // No necesitamos refrescar la página ya que realtime se encargará de actualizar la tabla
     } catch (error) {
       console.error("Error al eliminar expresión:", error)
       toast({
@@ -1610,6 +1702,23 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
               Filtrando: Mis asignaciones
             </Badge>
           )}
+        </div>
+
+        {/* Indicador de estado de conexión realtime */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-xs">
+            {isRealtimeConnected ? (
+              <>
+                <Wifi className="h-3 w-3 text-green-500" />
+                <span className="text-green-600">En tiempo real</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-3 w-3 text-red-500" />
+                <span className="text-red-600">Desconectado</span>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
