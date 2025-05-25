@@ -5,12 +5,9 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function generateExpressionNumber(): string {
-  const year = new Date().getFullYear()
-  const randomNum = Math.floor(Math.random() * 1000)
-    .toString()
-    .padStart(3, "0")
-  return `EXP-${year}-${randomNum}`
+export function generateExpressionNumber(year: number, sequence: number, abreviatura = "RNAR"): string {
+  const formattedSequence = sequence.toString().padStart(4, "0")
+  return `${year}-${formattedSequence}-${abreviatura}`
 }
 
 export function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
