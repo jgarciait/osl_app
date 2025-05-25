@@ -52,7 +52,7 @@ export function DashboardHeader() {
         <h1 className="text-xl font-semibold">
           {pathname === "/dashboard" && "Dashboard"}
           {pathname === "/dashboard/expresiones" && "Expresiones"}
-          {pathname.includes("/dashboard/expresiones/nueva") && "Nueva Expresión"}
+          {pathname === "/dashboard/expresiones/nueva" && "Nueva Expresión"}
           {isEditingExpresion && (
             <span className="flex items-center">
               Editar Expresión

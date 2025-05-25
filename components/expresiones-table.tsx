@@ -27,8 +27,10 @@ import {
   ArrowUpDown,
   Wifi,
   WifiOff,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -58,6 +60,8 @@ import { ContextMenu } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 
 // Función para eliminar etiquetas HTML del texto
 const stripHtml = (html) => {
@@ -368,13 +372,46 @@ async function fetchWithRetry(fetchFn, maxRetries = 3, initialDelay = 1000) {
   }
 }
 
+// Reemplazar la interfaz ExpresionesTableProps con:
 interface ExpresionesTableProps {
   expresiones: any[]
   years: number[]
   tagMap?: Record<string, string>
+  disableFilters?: boolean
+  searchQuery?: string
+  isSearching?: boolean
+  isSearchMode?: boolean
+  onSearchChange?: (query: string) => void
+  onClearSearch?: () => void
+  searchTotalCount?: number
+  serverPagination?: {
+    currentPage: number
+    totalPages: number
+    totalCount: number
+    pageSize: number
+    hasNextPage: boolean
+    hasPrevPage: boolean
+    goToPage: (page: number) => void
+    goToNextPage: () => void
+    goToPrevPage: () => void
+    isLoading: boolean
+  }
 }
 
-export function ExpresionesTable({ expresiones, years, tagMap = {} }: ExpresionesTableProps) {
+// Reemplazar la línea de la función del componente con:
+export function ExpresionesTable({
+  expresiones,
+  years,
+  tagMap = {},
+  disableFilters = false,
+  searchQuery = "",
+  isSearching = false,
+  isSearchMode = false,
+  onSearchChange,
+  onClearSearch,
+  searchTotalCount = 0,
+  serverPagination,
+}: ExpresionesTableProps) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
@@ -415,6 +452,17 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [tagOptions, setTagOptions] = useState([])
   const [globalFilter, setGlobalFilter] = useState("")
+
+  // Efecto para limpiar filtros cuando se desactivan
+  useEffect(() => {
+    if (disableFilters) {
+      // Limpiar todos los filtros de columna
+      setColumnFilters([])
+      setRowSelection({})
+      setGlobalFilter("")
+      setIsFilteringByCurrentUser(false)
+    }
+  }, [disableFilters])
 
   // Estados para Realtime
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false)
@@ -1166,7 +1214,8 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
     data: expresionesData,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
+    // Deshabilitar paginación del cliente cuando usamos paginación del servidor
+    getPaginationRowModel: serverPagination ? undefined : getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
@@ -1195,6 +1244,9 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       globalFilter,
     },
     onGlobalFilterChange: setGlobalFilter,
+    // Configuración manual de paginación para servidor
+    manualPagination: !!serverPagination,
+    pageCount: serverPagination?.totalPages || -1,
   })
 
   const statusOptions = [
@@ -1673,6 +1725,15 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
     fetchTagOptions()
   }, [])
 
+  // Añadir después de la línea 1247 (antes del return)
+  const totalPages = Math.ceil(table.getFilteredRowModel().rows.length / table.getState().pagination.pageSize)
+  const currentTablePage = table.getState().pagination.pageIndex + 1
+
+  // Función para ir a una página específica
+  const goToPage = (page: number) => {
+    table.setPageIndex(page - 1)
+  }
+
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
@@ -1702,10 +1763,45 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
               Filtrando: Mis asignaciones
             </Badge>
           )}
+
+          {/* Buscador movido aquí */}
+          <div className="relative ml-4 min-w-[350px]">
+            <Input
+              placeholder="Buscar expresiones (nombre, email, número)..."
+              value={searchQuery}
+              onChange={(e) => onSearchChange?.(e.target.value)}
+              className="pl-2 pr-2"
+            />
+            {isSearching && (
+              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
+            )}
+            {searchQuery && !isSearching && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onClearSearch}
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            )}
+          </div>
+
+          {isSearchMode && (
+            <Button variant="outline" size="sm" onClick={onClearSearch}>
+              Limpiar búsqueda
+            </Button>
+          )}
         </div>
 
-        {/* Indicador de estado de conexión realtime */}
+        {/* Reemplazar el div con la información de estado de conexión realtime */}
         <div className="flex items-center gap-2">
+          {/* Información de paginación */}
+          <div className="text-xs text-gray-500">
+            Página {currentTablePage} de {totalPages}({table.getFilteredRowModel().rows.length} registros filtrados)
+          </div>
+
+          {/* Indicador de estado de conexión realtime */}
           <div className="flex items-center gap-1 text-xs">
             {isRealtimeConnected ? (
               <>
@@ -1731,6 +1827,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
         tagOptions={tagOptions}
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
+        disabled={disableFilters} // Nueva prop para desactivar controles
       />
 
       {isLoading ? (
@@ -1747,7 +1844,79 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
             canEdit={canManageExpressions}
             tagMap={tagMap}
           />
-          <DataTablePagination table={table} />
+          {/* Reemplazar DataTablePagination con paginación del servidor */}
+          {serverPagination ? (
+            <div className="flex items-center justify-between mt-4">
+              <div className="flex items-center space-x-2">
+                <p className="text-sm text-muted-foreground">
+                  Mostrando {serverPagination.pageSize} entradas por página
+                </p>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                Página {serverPagination.currentPage + 1} de {serverPagination.totalPages}(
+                {serverPagination.totalCount.toLocaleString()} registros total)
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={serverPagination.goToPrevPage}
+                  disabled={!serverPagination.hasPrevPage || serverPagination.isLoading}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  <span className="sr-only">Página anterior</span>
+                </Button>
+
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, serverPagination.totalPages) }).map((_, i) => {
+                    let pageToShow
+                    if (serverPagination.totalPages <= 5) {
+                      pageToShow = i
+                    } else {
+                      let startPage = Math.max(0, serverPagination.currentPage - 2)
+                      const endPage = Math.min(serverPagination.totalPages - 1, startPage + 4)
+                      if (endPage === serverPagination.totalPages - 1) {
+                        startPage = Math.max(0, endPage - 4)
+                      }
+                      pageToShow = startPage + i
+                    }
+
+                    if (pageToShow < serverPagination.totalPages) {
+                      return (
+                        <Button
+                          key={pageToShow}
+                          variant={pageToShow === serverPagination.currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => serverPagination.goToPage(pageToShow)}
+                          disabled={serverPagination.isLoading}
+                          className={
+                            pageToShow === serverPagination.currentPage ? "bg-[#1a365d] hover:bg-[#15294d]" : ""
+                          }
+                        >
+                          {pageToShow + 1}
+                        </Button>
+                      )
+                    }
+                    return null
+                  })}
+                </div>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={serverPagination.goToNextPage}
+                  disabled={!serverPagination.hasNextPage || serverPagination.isLoading}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                  <span className="sr-only">Página siguiente</span>
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <DataTablePagination table={table} />
+          )}
         </>
       )}
 
