@@ -370,9 +370,18 @@ interface ExpresionesTableProps {
   expresiones: any[]
   years: number[]
   tagMap?: Record<string, string>
+  hideStatusFilter?: boolean
+  defaultFilters?: { id: string; value: any }[]
 }
 
-export function ExpresionesTable({ expresiones, years, tagMap = {} }: ExpresionesTableProps) {
+// Update the function signature to include defaultFilters with a default empty array
+export function ExpresionesTable({
+  expresiones,
+  years,
+  tagMap = {},
+  hideStatusFilter = false,
+  defaultFilters = [{ id: "estado", value: ["Activa"] }],
+}: ExpresionesTableProps) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
@@ -386,12 +395,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
       desc: true,
     },
   ])
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([
-    {
-      id: "estado",
-      value: ["Activa"],
-    },
-  ])
+  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(defaultFilters)
   const [rowSelection, setRowSelection] = useState({})
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [expressionToDelete, setExpressionToDelete] = useState(null)
@@ -1622,6 +1626,7 @@ export function ExpresionesTable({ expresiones, years, tagMap = {} }: Expresione
         tagOptions={tagOptions}
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
+        hideStatusFilter={hideStatusFilter}
       />
 
       {isLoading ? (

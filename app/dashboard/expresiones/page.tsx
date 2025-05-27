@@ -6,6 +6,7 @@ import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ExpresionesPage() {
   const [expresiones, setExpresiones] = useState([])
@@ -360,9 +361,34 @@ export default function ExpresionesPage() {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full -mt-6">
       <div className="flex justify-between items-center mb-6"></div>
-      <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
+
+      <Tabs defaultValue="active" className="w-full">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsTrigger value="active">Expresiones Activas</TabsTrigger>
+          <TabsTrigger value="archived">Expresiones Archivadas</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="active" className="mt-6">
+          <ExpresionesTable
+            expresiones={expresiones.filter((exp) => !exp.archivado)}
+            years={years}
+            tagMap={tagMap}
+            hideStatusFilter={true}
+          />
+        </TabsContent>
+
+        <TabsContent value="archived" className="mt-6">
+          <ExpresionesTable
+            expresiones={expresiones.filter((exp) => exp.archivado)}
+            years={years}
+            tagMap={tagMap}
+            hideStatusFilter={true}
+            defaultFilters={[]} // Don't apply any default filters for archived tab
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Diálogo para seleccionar números disponibles */}
       <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
