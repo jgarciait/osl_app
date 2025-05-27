@@ -17,7 +17,7 @@ export default function DashboardLayout({
             <AppSidebar />
             <div className="flex-1 w-full">
               <DashboardHeader />
-              <main className="px-4 md:px-6 pt-2 pb-4 md:pb-6 overflow-auto w-full h-full">{children}</main>
+              <main className="p-4 md:p-6 overflow-auto w-full h-full">{children}</main>
             </div>
           </div>
         </ProtectedRoute>

@@ -1,17 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo, useCallback } from "react"
-import { createClientClient } from "@/lib/supabase-client"
+import { useState, useEffect, useRef } from "react"
+import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
 import { useRouter } from "next/navigation"
 import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
-import { RequestManager } from "@/lib/request-manager"
-import { Loader2, Search } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-
-// Initialize request manager singleton
-const requestManager = new RequestManager()
 
 export default function ExpresionesPage() {
   const [expresiones, setExpresiones] = useState([])
@@ -23,317 +17,192 @@ export default function ExpresionesPage() {
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
 
-  // Estados para paginación del servidor
-  const [totalCount, setTotalCount] = useState(0)
-  const [currentPage, setCurrentPage] = useState(0)
-  const [pageSize] = useState(5)
-  const [isLoadingPage, setIsLoadingPage] = useState(false)
-
-  // Estados para búsqueda
-  const [searchQuery, setSearchQuery] = useState("")
-  const [isSearching, setIsSearching] = useState(false)
-  const [isSearchMode, setIsSearchMode] = useState(false)
-  const [searchTotalCount, setSearchTotalCount] = useState(0)
-  const [disableTableFilters, setDisableTableFilters] = useState(false)
-
-  // Refs for cleanup
+  // Añadir refs para las suscripciones
   const subscriptions = useRef([])
-  const dataFetched = useRef(false)
-  const searchTimeout = useRef(null)
 
-  const cleanupSubscriptions = useCallback(() => {
+  // Función para limpiar suscripciones
+  const cleanupSubscriptions = () => {
     subscriptions.current.forEach((subscription) => subscription.unsubscribe())
     subscriptions.current = []
-  }, [])
+  }
 
-  // Función para obtener el conteo total
-  const fetchTotalCount = useCallback(
-    async (searchQuery = "") => {
+  useEffect(() => {
+    const fetchData = async () => {
       try {
-        let query = supabase.from("expresiones").select("*", { count: "exact", head: true })
+        setIsLoading(true)
 
-        // Si hay búsqueda, aplicar SOLO filtro de búsqueda (ignorar todos los demás filtros)
-        if (searchQuery.trim()) {
-          query = query.or(`nombre.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,numero.ilike.%${searchQuery}%`)
-          // NO aplicar ningún otro filtro cuando hay búsqueda activa
+        // Obtener todas las etiquetas y crear un mapa de ID a nombre
+        const { data: etiquetas, error: etiquetasError } = await supabase.from("etiquetas").select("id, nombre, color")
+
+        if (etiquetasError) {
+          console.error("Error al obtener etiquetas:", etiquetasError)
+          throw etiquetasError
         }
 
-        const { count, error } = await query
-
-        if (error) throw error
-
-        if (searchQuery.trim()) {
-          setSearchTotalCount(count || 0)
-        } else {
-          setTotalCount(count || 0)
-        }
-
-        return count || 0
-      } catch (error) {
-        console.error("Error fetching total count:", error)
-        return 0
-      }
-    },
-    [supabase],
-  )
-
-  // Memoized function to fetch static data (etiquetas, years)
-  const fetchStaticData = useCallback(async () => {
-    return requestManager.dedupe("static-data", async () => {
-      try {
-        console.log("Fetching static data...")
-
-        // Fetch etiquetas and years in parallel
-        const [etiquetasResult, yearsResult] = await Promise.all([
-          supabase.from("etiquetas").select("id, nombre, color"),
-          supabase.from("expresiones").select("ano").order("ano", { ascending: false }),
-        ])
-
-        if (etiquetasResult.error) throw etiquetasResult.error
-        if (yearsResult.error) throw yearsResult.error
-
-        // Process etiquetas map
+        // Crear un mapa de ID a nombre de etiqueta
         const etiquetasMap = {}
-        etiquetasResult.data?.forEach((etiqueta) => {
+        etiquetas.forEach((etiqueta) => {
           etiquetasMap[etiqueta.id] = etiqueta.nombre
         })
 
-        // Get unique years
-        const uniqueYears = [...new Set(yearsResult.data?.map((item) => item.ano) || [])].sort((a, b) => b - a)
+        // Guardar el mapa de etiquetas
+        setTagMap(etiquetasMap)
 
-        console.log("Static data fetched:", { etiquetas: etiquetasResult.data?.length, years: uniqueYears.length })
+        // Obtener los perfiles de usuarios con caché
+        const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
 
-        return { etiquetasMap, uniqueYears }
-      } catch (error) {
-        console.error("Error fetching static data:", error)
-        throw error
-      }
-    })
-  }, [supabase])
+        // Obtener los temas con caché
+        const temas = await cachedQuery("temas", () => supabase.from("temas").select("id, nombre"))
 
-  // Función para cargar expresiones con paginación del servidor
-  const fetchExpresiones = useCallback(
-    async (page = 0, searchQuery = "") => {
-      try {
-        console.log(`Fetching expressions page ${page}${searchQuery ? ` with search: "${searchQuery}"` : ""}...`)
-
-        const offset = page * pageSize
-
-        // Construir query base
-        let query = supabase
-          .from("expresiones")
-          .select(`
-          id, 
-          nombre, 
-          email, 
-          numero, 
-          ano, 
-          mes, 
-          archivado, 
-          created_at,
-          assigned_to,
-          assigned_color,
-          assigned_text_color,
-          assigned_border_color,
-          tema
-        `)
-          .order("created_at", { ascending: false })
-
-        // Si hay búsqueda, aplicar SOLO filtro de búsqueda (desactivar todos los demás filtros)
-        if (searchQuery.trim()) {
-          query = query.or(`nombre.ilike.%${searchQuery}%,email.ilike.%${searchQuery}%,numero.ilike.%${searchQuery}%`)
-          // NO aplicar ningún otro filtro cuando hay búsqueda activa
-        }
-
-        // Aplicar paginación
-        query = query.range(offset, offset + pageSize - 1)
-
-        const { data, error } = await query
-
-        if (error) throw error
-
-        console.log(`Fetched ${data?.length || 0} expressions for page ${page}`)
-
-        return data || []
-      } catch (error) {
-        console.error(`Error fetching expressions page ${page}:`, error)
-        throw error
-      }
-    },
-    [supabase, pageSize],
-  )
-
-  // Memoized function to fetch additional data (profiles, temas, etc.)
-  const fetchAdditionalData = useCallback(async () => {
-    return requestManager.dedupe("additional-data", async () => {
-      try {
-        console.log("Fetching additional data...")
-
-        const [profilesResult, temasResult] = await Promise.all([
-          supabase.from("profiles").select("id, nombre, apellido"),
-          supabase.from("temas").select("id, nombre"),
-        ])
-
-        if (profilesResult.error) throw profilesResult.error
-        if (temasResult.error) throw temasResult.error
-
-        // Create user map
+        // Crear un mapa de IDs de usuario a nombres completos
         const userMap = new Map()
-        profilesResult.data?.forEach((profile) => {
+        profiles?.data?.forEach((profile) => {
           userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
         })
 
-        // Create tema map
+        // Obtener las expresiones con su campo tema
+        const { data, error } = await supabase
+          .from("expresiones")
+          .select(`
+            id, 
+            nombre, 
+            email, 
+            numero, 
+            ano, 
+            mes, 
+            archivado, 
+            created_at,
+            assigned_to,
+            assigned_color,
+            assigned_text_color,
+            assigned_border_color,
+            tema
+          `)
+          .order("created_at", { ascending: false })
+        // Removed limit to fetch all expressions
+
+        if (error) {
+          console.error("Error al obtener expresiones:", error)
+          throw error
+        }
+
+        // Obtener las relaciones entre expresiones y temas
+        const { data: expresionTemas, error: expresionTemasError } = await supabase
+          .from("expresion_temas")
+          .select("expresion_id, tema_id")
+
+        if (expresionTemasError) {
+          console.error("Error al obtener relaciones expresion-tema:", expresionTemasError)
+          // Continuamos aunque haya error, ya que podemos usar el campo tema directo
+        }
+
+        // Crear un mapa de expresión a temas
+        const expresionTemasMap = new Map()
+        if (expresionTemas) {
+          expresionTemas.forEach((rel) => {
+            if (!expresionTemasMap.has(rel.expresion_id)) {
+              expresionTemasMap.set(rel.expresion_id, [])
+            }
+            expresionTemasMap.get(rel.expresion_id).push(rel.tema_id)
+          })
+        }
+
+        // Crear un mapa de IDs de tema a nombres
         const temasMap = new Map()
-        temasResult.data?.forEach((tema) => {
+        temas?.data?.forEach((tema) => {
           temasMap.set(tema.id, tema.nombre)
         })
 
-        console.log("Additional data fetched:", {
-          profiles: profilesResult.data?.length,
-          temas: temasResult.data?.length,
+        // Procesar los datos para incluir el nombre del tema y el nombre del usuario asignado
+        let processedData = data.map((expresion) => {
+          // Primero intentamos obtener el tema de la relación muchos a muchos
+          let tema_nombre = "Sin asignar"
+
+          // Si hay relaciones en expresion_temas, usamos el primer tema relacionado
+          const temasRelacionados = expresionTemasMap.get(expresion.id)
+          if (temasRelacionados && temasRelacionados.length > 0) {
+            const primerTemaId = temasRelacionados[0]
+            tema_nombre = temasMap.get(primerTemaId) || "Sin asignar"
+          }
+          // Si no hay relación, intentamos usar el campo tema directo
+          else if (expresion.tema) {
+            tema_nombre = temasMap.get(expresion.tema) || "Sin asignar"
+          }
+
+          // Obtener el nombre del usuario asignado si existe
+          const assigned_to_name = expresion.assigned_to ? userMap.get(expresion.assigned_to) || null : null
+
+          return {
+            ...expresion,
+            tema_nombre,
+            assigned_to_name,
+          }
         })
 
-        return { userMap, temasMap }
-      } catch (error) {
-        console.error("Error fetching additional data:", error)
-        throw error
-      }
-    })
-  }, [supabase])
+        // Después de procesar los datos de expresiones, cargar información de etiquetas
+        if (data && data.length > 0) {
+          // Obtener IDs de todas las expresiones
+          const expresionIds = data.map((exp) => exp.id)
 
-  // Función para procesar datos de expresiones
-  const processExpresionData = useCallback((expresionData, additionalData) => {
-    return expresionData.map((expresion) => {
-      // Get tema name
-      let tema_nombre = "Sin asignar"
-      if (expresion.tema) {
-        tema_nombre = additionalData.temasMap.get(expresion.tema) || "Sin asignar"
-      }
+          // Consultar documentos y sus etiquetas para estas expresiones
+          const { data: documentosConEtiquetas, error: documentosError } = await supabase
+            .from("documentos")
+            .select(`
+              id,
+              expresion_id,
+              documento_etiquetas(etiqueta_id)
+            `)
+            .in("expresion_id", expresionIds)
 
-      // Get assigned user name
-      const assigned_to_name = expresion.assigned_to ? additionalData.userMap.get(expresion.assigned_to) || null : null
+          if (documentosError) {
+            console.error("Error al obtener documentos con etiquetas:", documentosError)
+            throw documentosError
+          }
 
-      return {
-        ...expresion,
-        tema_nombre,
-        assigned_to_name,
-        document_tags: [],
-        document_tag_names: [],
-      }
-    })
-  }, [])
+          // Crear un mapa de expresión a etiquetas
+          const expresionEtiquetasMap = new Map()
 
-  // Función para cargar una página específica
-  const loadPage = useCallback(
-    async (page, searchQuery = "") => {
-      if (isLoadingPage) return
+          // Procesar los datos para agrupar etiquetas por expresión
+          documentosConEtiquetas.forEach((doc) => {
+            if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
+              const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
 
-      try {
-        setIsLoadingPage(true)
+              if (!expresionEtiquetasMap.has(doc.expresion_id)) {
+                expresionEtiquetasMap.set(doc.expresion_id, new Set())
+              }
 
-        const [expressionsData, additionalData] = await Promise.all([
-          fetchExpresiones(page, searchQuery),
-          fetchAdditionalData(),
-        ])
+              // Añadir etiquetas al conjunto para esta expresión
+              tagIds.forEach((tagId) => {
+                expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
+              })
+            }
+          })
 
-        const processedData = processExpresionData(expressionsData, additionalData)
-        setExpresiones(processedData)
-        setCurrentPage(page)
+          // Actualizar los datos procesados con la información de etiquetas
+          processedData = processedData.map((exp) => {
+            const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
 
-        console.log(`Loaded page ${page} with ${processedData.length} expressions`)
-      } catch (error) {
-        console.error("Error loading page:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las expresiones de esta página",
-        })
-      } finally {
-        setIsLoadingPage(false)
-      }
-    },
-    [isLoadingPage, fetchExpresiones, fetchAdditionalData, processExpresionData, toast],
-  )
+            // Convertir IDs a nombres de etiquetas
+            const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
 
-  // Manejar búsqueda con debounce
-  const handleSearch = useCallback(
-    (query) => {
-      setSearchQuery(query)
-
-      // Limpiar timeout anterior
-      if (searchTimeout.current) {
-        clearTimeout(searchTimeout.current)
-      }
-
-      // Si la query está vacía, salir del modo búsqueda y reactivar filtros
-      if (!query.trim()) {
-        setIsSearchMode(false)
-        setIsSearching(false)
-        setDisableTableFilters(false) // Reactivar filtros de la tabla
-        // Recargar página actual sin búsqueda
-        loadPage(currentPage)
-        return
-      }
-
-      setIsSearching(true)
-      setIsSearchMode(true)
-      setDisableTableFilters(true) // Desactivar filtros de la tabla
-
-      // Establecer nuevo timeout
-      searchTimeout.current = setTimeout(async () => {
-        try {
-          // Obtener conteo total de búsqueda (sin filtros)
-          await fetchTotalCount(query)
-          // Cargar primera página de resultados (sin filtros)
-          await loadPage(0, query)
-        } catch (error) {
-          console.error("Error in search:", error)
-        } finally {
-          setIsSearching(false)
+            return {
+              ...exp,
+              document_tags: tagIds,
+              document_tag_names: tagNames,
+            }
+          })
         }
-      }, 500) // 500ms de debounce
-    },
-    [loadPage, currentPage, fetchTotalCount],
-  )
 
-  // Función para limpiar búsqueda
-  const clearSearch = useCallback(() => {
-    setSearchQuery("")
-    setIsSearchMode(false)
-    setIsSearching(false)
-    setSearchTotalCount(0)
-    setDisableTableFilters(false) // Reactivar filtros de la tabla
-    // Recargar página actual sin búsqueda
-    loadPage(0)
-    setCurrentPage(0)
-  }, [loadPage])
+        setExpresiones(processedData)
 
-  // Main data fetching effect
-  useEffect(() => {
-    if (dataFetched.current) return
+        // Obtener años únicos para el filtro
+        const uniqueYears = [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a)
+        setYears(uniqueYears)
 
-    const loadData = async () => {
-      try {
-        setIsLoading(true)
-        dataFetched.current = true
-
-        console.log("=== Starting initial data load ===")
-
-        // Load all data in parallel
-        const [staticData, totalCount] = await Promise.all([fetchStaticData(), fetchTotalCount()])
-
-        // Set static data
-        setTagMap(staticData.etiquetasMap)
-        setYears(staticData.uniqueYears)
-
-        // Load first page
-        await loadPage(0)
-
-        console.log("=== Initial data load complete ===")
-        console.log(`Total expressions: ${totalCount}`)
+        // Configurar suscripciones en tiempo real
+        setupRealtimeSubscriptions(userMap, temasMap, expresionTemasMap)
       } catch (error) {
-        console.error("Error loading data:", error)
+        console.error("Error al cargar datos:", error)
         toast({
           variant: "destructive",
           title: "Error",
@@ -344,141 +213,158 @@ export default function ExpresionesPage() {
       }
     }
 
-    loadData()
+    fetchData()
 
+    // Limpiar suscripciones al desmontar
     return () => {
       cleanupSubscriptions()
-      if (searchTimeout.current) {
-        clearTimeout(searchTimeout.current)
-      }
     }
-  }, [fetchStaticData, fetchTotalCount, loadPage, cleanupSubscriptions, toast])
+  }, [supabase, toast])
 
-  // Funciones de navegación
-  const goToPage = useCallback(
-    (page) => {
-      if (page < 0) return
-      const maxPage = Math.ceil((isSearchMode ? searchTotalCount : totalCount) / pageSize) - 1
-      if (page > maxPage) return
+  // Función para configurar suscripciones en tiempo real
+  const setupRealtimeSubscriptions = (userMap, temasMap, expresionTemasMap) => {
+    // Limpiar suscripciones existentes
+    cleanupSubscriptions()
 
-      loadPage(page, isSearchMode ? searchQuery : "")
-    },
-    [loadPage, isSearchMode, searchQuery, searchTotalCount, totalCount, pageSize],
-  )
+    // Suscribirse a cambios en expresiones
+    const expresionesSubscription = supabase
+      .channel("expresiones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresiones",
+        },
+        (payload) => {
+          console.log("Cambio en expresiones:", payload)
 
-  const goToNextPage = useCallback(() => {
-    goToPage(currentPage + 1)
-  }, [goToPage, currentPage])
+          if (payload.eventType === "INSERT") {
+            // Procesar nueva expresión
+            const newExpresion = payload.new
 
-  const goToPrevPage = useCallback(() => {
-    goToPage(currentPage - 1)
-  }, [goToPage, currentPage])
+            // Obtener el nombre del tema
+            let tema_nombre = "Sin asignar"
+            if (newExpresion.tema) {
+              tema_nombre = temasMap.get(newExpresion.tema) || "Sin asignar"
+            }
 
-  // Calcular información de paginación
-  const currentTotal = isSearchMode ? searchTotalCount : totalCount
-  const totalPages = Math.ceil(currentTotal / pageSize)
-  const hasNextPage = currentPage < totalPages - 1
-  const hasPrevPage = currentPage > 0
+            // Obtener el nombre del usuario asignado
+            const assigned_to_name = newExpresion.assigned_to ? userMap.get(newExpresion.assigned_to) || null : null
 
-  // Memoize props to prevent unnecessary rerenders
-  const memoizedProps = useMemo(
-    () => ({
-      expresiones,
-      years,
-      tagMap,
-      disableFilters: disableTableFilters,
-      // Props de búsqueda para mover a la tabla
-      searchQuery,
-      isSearching,
-      isSearchMode,
-      onSearchChange: handleSearch,
-      onClearSearch: clearSearch,
-      searchTotalCount,
-      // Pasar información de paginación del servidor
-      serverPagination: {
-        currentPage,
-        totalPages,
-        totalCount: currentTotal,
-        pageSize,
-        hasNextPage,
-        hasPrevPage,
-        goToPage,
-        goToNextPage,
-        goToPrevPage,
-        isLoading: isLoadingPage,
-      },
-    }),
-    [
-      expresiones,
-      years,
-      tagMap,
-      disableTableFilters,
-      searchQuery,
-      isSearching,
-      isSearchMode,
-      handleSearch,
-      clearSearch,
-      searchTotalCount,
-      currentPage,
-      totalPages,
-      currentTotal,
-      pageSize,
-      hasNextPage,
-      hasPrevPage,
-      goToPage,
-      goToNextPage,
-      goToPrevPage,
-      isLoadingPage,
-    ],
-  )
+            // Añadir la nueva expresión al estado
+            setExpresiones((prev) => [
+              {
+                ...newExpresion,
+                tema_nombre,
+                assigned_to_name,
+                document_tags: [],
+                document_tag_names: [],
+              },
+              ...prev,
+            ])
+          } else if (payload.eventType === "UPDATE") {
+            // Actualizar expresión existente
+            setExpresiones((prev) =>
+              prev.map((exp) => {
+                if (exp.id === payload.new.id) {
+                  // Obtener el nombre del tema
+                  let tema_nombre = "Sin asignar"
+                  if (payload.new.tema) {
+                    tema_nombre = temasMap.get(payload.new.tema) || "Sin asignar"
+                  }
 
-  // Limpiar timeout al desmontar
-  useEffect(() => {
-    return () => {
-      if (searchTimeout.current) {
-        clearTimeout(searchTimeout.current)
-      }
-    }
-  }, [])
+                  // Obtener el nombre del usuario asignado
+                  const assigned_to_name = payload.new.assigned_to ? userMap.get(payload.new.assigned_to) || null : null
+
+                  return {
+                    ...payload.new,
+                    tema_nombre,
+                    assigned_to_name,
+                    document_tags: exp.document_tags || [],
+                    document_tag_names: exp.document_tag_names || [],
+                  }
+                }
+                return exp
+              }),
+            )
+          } else if (payload.eventType === "DELETE") {
+            // Eliminar expresión
+            setExpresiones((prev) => prev.filter((exp) => exp.id !== payload.old.id))
+          }
+        },
+      )
+      .subscribe()
+
+    // Suscribirse a cambios en expresion_comites
+    const expresionComitesSubscription = supabase
+      .channel("expresion-comites-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresion_comites",
+        },
+        (payload) => {
+          console.log("Cambio en expresion_comites:", payload)
+          // Aquí podrías implementar lógica específica para actualizar las relaciones
+          // entre expresiones y comités si es necesario
+        },
+      )
+      .subscribe()
+
+    // Suscribirse a cambios en expresion_clasificaciones
+    const expresionClasificacionesSubscription = supabase
+      .channel("expresion-clasificaciones-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "expresion_clasificaciones",
+        },
+        (payload) => {
+          console.log("Cambio en expresion_clasificaciones:", payload)
+          // Aquí podrías implementar lógica específica para actualizar las relaciones
+          // entre expresiones y clasificaciones si es necesario
+        },
+      )
+      .subscribe()
+
+    // Suscribirse a cambios en documentos
+    const documentosSubscription = supabase
+      .channel("documentos-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "documentos",
+        },
+        (payload) => {
+          console.log("Cambio en documentos:", payload)
+          // Aquí podrías implementar lógica específica para actualizar los documentos
+          // si es necesario en esta vista
+        },
+      )
+      .subscribe()
+
+    // Guardar referencias a las suscripciones para limpiarlas después
+    subscriptions.current = [
+      expresionesSubscription,
+      expresionComitesSubscription,
+      expresionClasificacionesSubscription,
+      documentosSubscription,
+    ]
+  }
 
   return (
     <div className="w-full">
-      {/* Header con información y búsqueda */}
-      <div className="flex flex-col gap-4 mb-6">
-        {/* Información de búsqueda */}
-        {isSearchMode && (
-          <div className="flex justify-center">
-            <Badge variant="secondary" className="flex items-center gap-1">
-              <Search className="h-3 w-3" />
-              {searchTotalCount} resultados para "{searchQuery}"
-            </Badge>
-          </div>
-        )}
+      <div className="flex justify-between items-center mb-6"></div>
+      <ExpresionesTable expresiones={expresiones} years={years} tagMap={tagMap} />
 
-        {/* Barra de búsqueda - se moverá a la tabla */}
-      </div>
-
-      {/* Tabla de expresiones */}
-      {isLoading ? (
-        <div className="w-full flex flex-col justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-          <p className="text-gray-500">Cargando expresiones...</p>
-        </div>
-      ) : (
-        <>
-          <ExpresionesTable {...memoizedProps} />
-
-          {/* Mensaje cuando no hay resultados */}
-          {expresiones.length === 0 && !isLoading && (
-            <div className="text-center mt-6 text-gray-500">
-              {isSearchMode
-                ? `No se encontraron expresiones que coincidan con "${searchQuery}"`
-                : "No hay expresiones disponibles"}
-            </div>
-          )}
-        </>
-      )}
-
+      {/* Diálogo para seleccionar números disponibles */}
       <AvailableNumbersDialog open={isAvailableNumbersDialogOpen} onOpenChange={setIsAvailableNumbersDialogOpen} />
     </div>
   )

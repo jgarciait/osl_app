@@ -25,12 +25,8 @@ import {
   FileDown,
   Eye,
   ArrowUpDown,
-  Wifi,
-  WifiOff,
-  ChevronLeft,
-  ChevronRight,
-  X,
 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -60,8 +56,6 @@ import { ContextMenu } from "@/components/ui/context-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
 
 // Función para eliminar etiquetas HTML del texto
 const stripHtml = (html) => {
@@ -372,46 +366,13 @@ async function fetchWithRetry(fetchFn, maxRetries = 3, initialDelay = 1000) {
   }
 }
 
-// Reemplazar la interfaz ExpresionesTableProps con:
 interface ExpresionesTableProps {
   expresiones: any[]
   years: number[]
   tagMap?: Record<string, string>
-  disableFilters?: boolean
-  searchQuery?: string
-  isSearching?: boolean
-  isSearchMode?: boolean
-  onSearchChange?: (query: string) => void
-  onClearSearch?: () => void
-  searchTotalCount?: number
-  serverPagination?: {
-    currentPage: number
-    totalPages: number
-    totalCount: number
-    pageSize: number
-    hasNextPage: boolean
-    hasPrevPage: boolean
-    goToPage: (page: number) => void
-    goToNextPage: () => void
-    goToPrevPage: () => void
-    isLoading: boolean
-  }
 }
 
-// Reemplazar la línea de la función del componente con:
-export function ExpresionesTable({
-  expresiones,
-  years,
-  tagMap = {},
-  disableFilters = false,
-  searchQuery = "",
-  isSearching = false,
-  isSearchMode = false,
-  onSearchChange,
-  onClearSearch,
-  searchTotalCount = 0,
-  serverPagination,
-}: ExpresionesTableProps) {
+export function ExpresionesTable({ expresiones, years, tagMap = {} }: ExpresionesTableProps) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
@@ -453,21 +414,6 @@ export function ExpresionesTable({
   const [tagOptions, setTagOptions] = useState([])
   const [globalFilter, setGlobalFilter] = useState("")
 
-  // Efecto para limpiar filtros cuando se desactivan
-  useEffect(() => {
-    if (disableFilters) {
-      // Limpiar todos los filtros de columna
-      setColumnFilters([])
-      setRowSelection({})
-      setGlobalFilter("")
-      setIsFilteringByCurrentUser(false)
-    }
-  }, [disableFilters])
-
-  // Estados para Realtime
-  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false)
-  const [realtimeStatus, setRealtimeStatus] = useState<"CONNECTING" | "OPEN" | "CLOSED">("CLOSED")
-
   // Ref para controlar las solicitudes de datos
   const isDataFetched = useRef(false)
 
@@ -480,219 +426,98 @@ export function ExpresionesTable({
     realtimeSubscriptions.current = []
   }
 
-  // Función para obtener datos adicionales de una expresión
-  const enrichExpresionData = useCallback(
-    async (expresion) => {
-      try {
-        // Obtener datos del tema si existe
-        let tema_nombre = "Sin asignar"
-        if (expresion.tema) {
-          const { data: temaData } = await supabase.from("temas").select("nombre").eq("id", expresion.tema).single()
-
-          if (temaData) {
-            tema_nombre = temaData.nombre
-          }
-        }
-
-        // Obtener datos del usuario asignado si existe
-        let assigned_to_name = null
-        if (expresion.assigned_to) {
-          const { data: userData } = await supabase
-            .from("profiles")
-            .select("nombre, apellido")
-            .eq("id", expresion.assigned_to)
-            .single()
-
-          if (userData) {
-            assigned_to_name = `${userData.nombre} ${userData.apellido}`
-          }
-        }
-
-        return {
-          ...expresion,
-          tema_nombre,
-          assigned_to_name,
-          document_tags: [],
-          document_tag_names: [],
-        }
-      } catch (error) {
-        console.error("Error enriching expression data:", error)
-        return {
-          ...expresion,
-          tema_nombre: "Sin asignar",
-          assigned_to_name: null,
-          document_tags: [],
-          document_tag_names: [],
-        }
-      }
-    },
-    [supabase],
-  )
-
-  // Configurar suscripciones en tiempo real
+  // Añadir este useEffect para configurar suscripciones en tiempo real
   useEffect(() => {
+    // Configurar suscripciones en tiempo real para las tablas relacionadas
     const setupRealtimeSubscriptions = () => {
       // Limpiar suscripciones existentes
       cleanupRealtimeSubscriptions()
 
-      console.log("Configurando suscripciones realtime...")
-
-      // Suscripción principal para expresiones
-      const expresionesChannel = supabase
-        .channel("expresiones-realtime")
+      // Suscribirse a cambios en document_etiquetas
+      const documentEtiquetasSubscription = supabase
+        .channel("document-etiquetas-changes")
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "expresiones",
-          },
-          async (payload) => {
-            console.log("Cambio en expresiones:", payload)
-
-            const { eventType, new: newRecord, old: oldRecord } = payload
-
-            switch (eventType) {
-              case "INSERT":
-                if (newRecord) {
-                  const enrichedExpresion = await enrichExpresionData(newRecord)
-                  setExpresiones((prev) => [enrichedExpresion, ...prev])
-
-                  toast({
-                    title: "Nueva expresión",
-                    description: `Se ha creado la expresión ${newRecord.numero}`,
-                  })
-                }
-                break
-
-              case "UPDATE":
-                if (newRecord) {
-                  const enrichedExpresion = await enrichExpresionData(newRecord)
-                  setExpresiones((prev) => prev.map((exp) => (exp.id === newRecord.id ? enrichedExpresion : exp)))
-
-                  // Solo mostrar notificación si no es el usuario actual quien hizo el cambio
-                  if (currentUser && newRecord.updated_by !== currentUser.id) {
-                    toast({
-                      title: "Expresión actualizada",
-                      description: `La expresión ${newRecord.numero} ha sido modificada`,
-                    })
-                  }
-                }
-                break
-
-              case "DELETE":
-                if (oldRecord) {
-                  setExpresiones((prev) => prev.filter((exp) => exp.id !== oldRecord.id))
-
-                  toast({
-                    title: "Expresión eliminada",
-                    description: `La expresión ${oldRecord.numero} ha sido eliminada`,
-                    variant: "destructive",
-                  })
-                }
-                break
-            }
-          },
-        )
-        .on("presence", { event: "sync" }, () => {
-          console.log("Presencia sincronizada")
-        })
-        .on("presence", { event: "join" }, ({ key, newPresences }) => {
-          console.log("Usuario conectado:", key, newPresences)
-        })
-        .on("presence", { event: "leave" }, ({ key, leftPresences }) => {
-          console.log("Usuario desconectado:", key, leftPresences)
-        })
-        .subscribe((status) => {
-          console.log("Estado de suscripción expresiones:", status)
-          setRealtimeStatus(status)
-          setIsRealtimeConnected(status === "SUBSCRIBED")
-
-          if (status === "SUBSCRIBED") {
-            toast({
-              title: "Conectado en tiempo real",
-              description: "Los cambios se actualizarán automáticamente",
-            })
-          } else if (status === "CLOSED") {
-            toast({
-              title: "Desconectado",
-              description: "La conexión en tiempo real se ha perdido",
-              variant: "destructive",
-            })
-          }
-        })
-
-      // Suscripción para cambios en temas
-      const temasChannel = supabase
-        .channel("temas-realtime")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "temas",
+            table: "documento_etiquetas",
           },
           (payload) => {
-            console.log("Cambio en temas:", payload)
-            // Actualizar las expresiones que usen este tema
-            const { eventType, new: newRecord, old: oldRecord } = payload
-
-            if (eventType === "UPDATE" && newRecord) {
-              setExpresiones((prev) =>
-                prev.map((exp) => (exp.tema === newRecord.id ? { ...exp, tema_nombre: newRecord.nombre } : exp)),
-              )
-            }
+            console.log("Cambio en documento_etiquetas:", payload)
+            // Si estamos viendo documentos de una expresión específica,
+            // podríamos actualizar las etiquetas aquí
           },
         )
         .subscribe()
 
-      // Suscripción para cambios en profiles (usuarios asignados)
-      const profilesChannel = supabase
-        .channel("profiles-realtime")
+      // Suscribirse a cambios en etiquetas
+      const etiquetasSubscription = supabase
+        .channel("etiquetas-changes")
         .on(
           "postgres_changes",
           {
             event: "*",
             schema: "public",
-            table: "profiles",
+            table: "etiquetas",
           },
           (payload) => {
-            console.log("Cambio en profiles:", payload)
-            const { eventType, new: newRecord, old: oldRecord } = payload
+            console.log("Cambio en etiquetas:", payload)
+            // Actualizar las etiquetas si cambian sus nombres o colores
+          },
+        )
+        .subscribe()
 
-            if (eventType === "UPDATE" && newRecord) {
-              const fullName = `${newRecord.nombre} ${newRecord.apellido}`
-              setExpresiones((prev) =>
-                prev.map((exp) => (exp.assigned_to === newRecord.id ? { ...exp, assigned_to_name: fullName } : exp)),
-              )
-            }
+      // Suscribirse a cambios en clasificaciones
+      const clasificacionesSubscription = supabase
+        .channel("clasificaciones-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "clasificaciones",
+          },
+          (payload) => {
+            console.log("Cambio en clasificaciones:", payload)
+            // Actualizar las clasificaciones si cambian
+          },
+        )
+        .subscribe()
+
+      // Suscribirse a cambios en comites
+      const comitesSubscription = supabase
+        .channel("comites-changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "comites",
+          },
+          (payload) => {
+            console.log("Cambio en comites:", payload)
+            // Actualizar los comités si cambian
           },
         )
         .subscribe()
 
       // Guardar referencias a las suscripciones
-      realtimeSubscriptions.current = [expresionesChannel, temasChannel, profilesChannel]
-
-      // Configurar presencia del usuario actual
-      if (currentUser) {
-        expresionesChannel.track({
-          user_id: currentUser.id,
-          user_name: `${currentUser.nombre} ${currentUser.apellido}`,
-          online_at: new Date().toISOString(),
-        })
-      }
+      realtimeSubscriptions.current = [
+        documentEtiquetasSubscription,
+        etiquetasSubscription,
+        clasificacionesSubscription,
+        comitesSubscription,
+      ]
     }
 
-    // Solo configurar si tenemos datos iniciales
-    if (expresionesData.length > 0) {
-      setupRealtimeSubscriptions()
-    }
+    setupRealtimeSubscriptions()
 
     // Limpiar suscripciones al desmontar
     return () => {
       cleanupRealtimeSubscriptions()
     }
-  }, [supabase, currentUser, expresionesData.length, enrichExpresionData, toast])
+  }, [supabase])
 
   // Actualizar expresionesData cuando cambian las expresiones recibidas como prop
   useEffect(() => {
@@ -1214,8 +1039,7 @@ export function ExpresionesTable({
     data: expresionesData,
     columns,
     getCoreRowModel: getCoreRowModel(),
-    // Deshabilitar paginación del cliente cuando usamos paginación del servidor
-    getPaginationRowModel: serverPagination ? undefined : getPaginationRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
     onColumnFiltersChange: setColumnFilters,
@@ -1244,9 +1068,6 @@ export function ExpresionesTable({
       globalFilter,
     },
     onGlobalFilterChange: setGlobalFilter,
-    // Configuración manual de paginación para servidor
-    manualPagination: !!serverPagination,
-    pageCount: serverPagination?.totalPages || -1,
   })
 
   const statusOptions = [
@@ -1348,7 +1169,6 @@ export function ExpresionesTable({
       let updateData = {
         assigned_to: assignedTo,
         updated_at: new Date().toISOString(), // Asegurar que se actualiza el timestamp
-        updated_by: currentUser?.id, // Añadir quién hizo el cambio
       }
 
       // Si hay un usuario asignado, buscar si ya tiene un color asignado
@@ -1392,12 +1212,41 @@ export function ExpresionesTable({
 
       console.log("Respuesta de actualización:", data)
 
+      // Obtener el nombre del usuario asignado
+      let assignedToName = null
+      if (assignedTo) {
+        const assignedUser = users.find((u) => u.id === assignedTo)
+        if (assignedUser) {
+          assignedToName = `${assignedUser.nombre} ${assignedUser.apellido}`
+        }
+      }
+
       toast({
         title: assignedTo ? "Expresión asignada" : "Asignación removida",
         description: assignedTo
           ? "La expresión ha sido asignada exitosamente"
           : "Se ha removido la asignación de la expresión",
       })
+
+      // Actualizar los datos localmente
+      setExpresiones((prev) =>
+        prev.map((exp) =>
+          exp.id === expressionToAssign.id
+            ? {
+                ...exp,
+                assigned_to: assignedTo,
+                assigned_to_name: assignedToName,
+                ...(updateData.assigned_color
+                  ? {
+                      assigned_color: updateData.assigned_color,
+                      assigned_text_color: updateData.assigned_text_color,
+                      assigned_border_color: updateData.assigned_border_color,
+                    }
+                  : {}),
+              }
+            : exp,
+        ),
+      )
 
       setIsAssignDialogOpen(false)
       setSelectedUser(null)
@@ -1449,13 +1298,7 @@ export function ExpresionesTable({
       }
 
       // Actualizar todas las expresiones asignadas a este usuario
-      const { error } = await supabase
-        .from("expresiones")
-        .update({
-          ...colorValues,
-          updated_by: currentUser?.id,
-        })
-        .eq("assigned_to", assignedUserId)
+      const { error } = await supabase.from("expresiones").update(colorValues).eq("assigned_to", assignedUserId)
 
       if (error) throw error
 
@@ -1463,6 +1306,18 @@ export function ExpresionesTable({
         title: "Color actualizado",
         description: "El color ha sido actualizado para todas las expresiones asignadas a este usuario",
       })
+
+      // Actualizar los datos localmente
+      setExpresiones((prev) =>
+        prev.map((exp) =>
+          exp.assigned_to === assignedUserId
+            ? {
+                ...exp,
+                ...colorValues,
+              }
+            : exp,
+        ),
+      )
 
       setIsColorDialogOpen(false)
     } catch (error) {
@@ -1652,7 +1507,8 @@ export function ExpresionesTable({
         description: "La expresión ha sido eliminada exitosamente",
       })
 
-      // No necesitamos refrescar la página ya que realtime se encargará de actualizar la tabla
+      // Refrescar la página para mostrar los cambios
+      router.refresh()
     } catch (error) {
       console.error("Error al eliminar expresión:", error)
       toast({
@@ -1725,15 +1581,6 @@ export function ExpresionesTable({
     fetchTagOptions()
   }, [])
 
-  // Añadir después de la línea 1247 (antes del return)
-  const totalPages = Math.ceil(table.getFilteredRowModel().rows.length / table.getState().pagination.pageSize)
-  const currentTablePage = table.getState().pagination.pageIndex + 1
-
-  // Función para ir a una página específica
-  const goToPage = (page: number) => {
-    table.setPageIndex(page - 1)
-  }
-
   return (
     <div className="w-full">
       <div className="flex justify-between items-center mb-4">
@@ -1763,58 +1610,6 @@ export function ExpresionesTable({
               Filtrando: Mis asignaciones
             </Badge>
           )}
-
-          {/* Buscador movido aquí */}
-          <div className="relative ml-4 min-w-[350px]">
-            <Input
-              placeholder="Buscar expresiones (nombre, email, número)..."
-              value={searchQuery}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              className="pl-2 pr-2"
-            />
-            {isSearching && (
-              <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-gray-400" />
-            )}
-            {searchQuery && !isSearching && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onClearSearch}
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-
-          {isSearchMode && (
-            <Button variant="outline" size="sm" onClick={onClearSearch}>
-              Limpiar búsqueda
-            </Button>
-          )}
-        </div>
-
-        {/* Reemplazar el div con la información de estado de conexión realtime */}
-        <div className="flex items-center gap-2">
-          {/* Información de paginación */}
-          <div className="text-xs text-gray-500">
-            Página {currentTablePage} de {totalPages}({table.getFilteredRowModel().rows.length} registros filtrados)
-          </div>
-
-          {/* Indicador de estado de conexión realtime */}
-          <div className="flex items-center gap-1 text-xs">
-            {isRealtimeConnected ? (
-              <>
-                <Wifi className="h-3 w-3 text-green-500" />
-                <span className="text-green-600">En tiempo real</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-3 w-3 text-red-500" />
-                <span className="text-red-600">Desconectado</span>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
@@ -1827,7 +1622,6 @@ export function ExpresionesTable({
         tagOptions={tagOptions}
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
-        disabled={disableFilters} // Nueva prop para desactivar controles
       />
 
       {isLoading ? (
@@ -1844,79 +1638,7 @@ export function ExpresionesTable({
             canEdit={canManageExpressions}
             tagMap={tagMap}
           />
-          {/* Reemplazar DataTablePagination con paginación del servidor */}
-          {serverPagination ? (
-            <div className="flex items-center justify-between mt-4">
-              <div className="flex items-center space-x-2">
-                <p className="text-sm text-muted-foreground">
-                  Mostrando {serverPagination.pageSize} entradas por página
-                </p>
-              </div>
-
-              <div className="text-sm text-muted-foreground">
-                Página {serverPagination.currentPage + 1} de {serverPagination.totalPages}(
-                {serverPagination.totalCount.toLocaleString()} registros total)
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={serverPagination.goToPrevPage}
-                  disabled={!serverPagination.hasPrevPage || serverPagination.isLoading}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="sr-only">Página anterior</span>
-                </Button>
-
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: Math.min(5, serverPagination.totalPages) }).map((_, i) => {
-                    let pageToShow
-                    if (serverPagination.totalPages <= 5) {
-                      pageToShow = i
-                    } else {
-                      let startPage = Math.max(0, serverPagination.currentPage - 2)
-                      const endPage = Math.min(serverPagination.totalPages - 1, startPage + 4)
-                      if (endPage === serverPagination.totalPages - 1) {
-                        startPage = Math.max(0, endPage - 4)
-                      }
-                      pageToShow = startPage + i
-                    }
-
-                    if (pageToShow < serverPagination.totalPages) {
-                      return (
-                        <Button
-                          key={pageToShow}
-                          variant={pageToShow === serverPagination.currentPage ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => serverPagination.goToPage(pageToShow)}
-                          disabled={serverPagination.isLoading}
-                          className={
-                            pageToShow === serverPagination.currentPage ? "bg-[#1a365d] hover:bg-[#15294d]" : ""
-                          }
-                        >
-                          {pageToShow + 1}
-                        </Button>
-                      )
-                    }
-                    return null
-                  })}
-                </div>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={serverPagination.goToNextPage}
-                  disabled={!serverPagination.hasNextPage || serverPagination.isLoading}
-                >
-                  <ChevronRight className="h-4 w-4" />
-                  <span className="sr-only">Página siguiente</span>
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <DataTablePagination table={table} />
-          )}
+          <DataTablePagination table={table} />
         </>
       )}
 

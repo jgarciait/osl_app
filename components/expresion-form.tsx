@@ -627,7 +627,7 @@ export function ExpresionForm({
 
   const deleteDocument = async (documentId) => {
     try {
-      // Primero obtener la informaci��n del documento para conocer su ruta
+      // Primero obtener la información del documento para conocer su ruta
       const { data: docData, error: docQueryError } = await supabase
         .from("documentos")
         .select("ruta")
