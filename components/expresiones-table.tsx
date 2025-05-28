@@ -14,23 +14,11 @@ import {
   getSortedRowModel,
   getFilteredRowModel,
 } from "@tanstack/react-table"
-import {
-  MoreHorizontal,
-  Edit,
-  Trash,
-  UserPlus,
-  Loader2,
-  Filter,
-  FilterX,
-  FileDown,
-  Eye,
-  ArrowUpDown,
-} from "lucide-react"
+import { MoreHorizontal, Edit, Trash, UserPlus, Loader2, FileDown, Eye, ArrowUpDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTableToolbar } from "@/components/data-table/data-table-toolbar"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 
 // Primero, añadir la importación de JSZip en la parte superior del archivo
 import JSZip from "jszip"
@@ -1587,36 +1575,6 @@ export function ExpresionesTable({
 
   return (
     <div className="w-full">
-      <div className="flex justify-between items-center mb-4">
-        <div className="flex items-center gap-2">
-          {currentUser && (
-            <Button
-              variant={isFilteringByCurrentUser ? "default" : "outline"}
-              size="sm"
-              onClick={toggleCurrentUserFilter}
-              className={isFilteringByCurrentUser ? "bg-blue-600 hover:bg-blue-700" : ""}
-            >
-              {isFilteringByCurrentUser ? (
-                <>
-                  <FilterX className="mr-2 h-4 w-4" />
-                  Ver todas
-                </>
-              ) : (
-                <>
-                  <Filter className="mr-2 h-4 w-4" />
-                  Ver mis asignaciones
-                </>
-              )}
-            </Button>
-          )}
-          {isFilteringByCurrentUser && currentUser && (
-            <Badge variant="secondary" className="ml-2">
-              Filtrando: Mis asignaciones
-            </Badge>
-          )}
-        </div>
-      </div>
-
       <DataTableToolbar
         table={table}
         statusOptions={statusOptions}
@@ -1627,6 +1585,9 @@ export function ExpresionesTable({
         globalFilter={globalFilter}
         setGlobalFilter={setGlobalFilter}
         hideStatusFilter={hideStatusFilter}
+        currentUser={currentUser}
+        isFilteringByCurrentUser={isFilteringByCurrentUser}
+        onToggleCurrentUserFilter={toggleCurrentUserFilter}
       />
 
       {isLoading ? (

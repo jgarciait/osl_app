@@ -17,6 +17,9 @@ export default function ExpresionesPage() {
   const { toast } = useToast()
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
+  const [globalSearchTerm, setGlobalSearchTerm] = useState("")
+  const [globalSearchResults, setGlobalSearchResults] = useState({ active: [], archived: [] })
+  const [activeTab, setActiveTab] = useState("active")
 
   // Añadir refs para las suscripciones
   const subscriptions = useRef([])
@@ -360,19 +363,85 @@ export default function ExpresionesPage() {
     ]
   }
 
-  return (
-    <div className="w-full -mt-6">
-      <div className="flex justify-between items-center mb-6"></div>
+  // Función para realizar búsqueda global en todas las expresiones
+  const handleGlobalSearch = (searchTerm: string) => {
+    setGlobalSearchTerm(searchTerm)
 
-      <Tabs defaultValue="active" className="w-full">
+    if (!searchTerm.trim()) {
+      // Si no hay término de búsqueda, limpiar resultados
+      setGlobalSearchResults({ active: [], archived: [] })
+      return
+    }
+
+    // Buscar en todas las expresiones
+    const searchTermLower = searchTerm.toLowerCase()
+
+    // Filtrar expresiones activas que coincidan con la búsqueda
+    const activeResults = expresiones
+      .filter((exp) => !exp.archivado)
+      .filter(
+        (exp) =>
+          exp.numero?.toString().toLowerCase().includes(searchTermLower) ||
+          exp.nombre?.toLowerCase().includes(searchTermLower) ||
+          exp.email?.toLowerCase().includes(searchTermLower) ||
+          exp.tema_nombre?.toLowerCase().includes(searchTermLower),
+      )
+
+    // Filtrar expresiones archivadas que coincidan con la búsqueda
+    const archivedResults = expresiones
+      .filter((exp) => exp.archivado)
+      .filter(
+        (exp) =>
+          exp.numero?.toString().toLowerCase().includes(searchTermLower) ||
+          exp.nombre?.toLowerCase().includes(searchTermLower) ||
+          exp.email?.toLowerCase().includes(searchTermLower) ||
+          exp.tema_nombre?.toLowerCase().includes(searchTermLower),
+      )
+
+    // Actualizar resultados
+    setGlobalSearchResults({
+      active: activeResults,
+      archived: archivedResults,
+    })
+  }
+
+  return (
+    <div className="w-full">
+      <div className="justify-between items-center mb-4">
+        <div className="relative w-full max-w-md">
+          <input
+            type="text"
+            placeholder="Buscar en todas las expresiones..."
+            value={globalSearchTerm}
+            onChange={(e) => handleGlobalSearch(e.target.value)}
+            className="h-8 w-full lg:w-[250px] text-sm pl-3 pr-3 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="active">Expresiones Activas</TabsTrigger>
-          <TabsTrigger value="archived">Expresiones Archivadas</TabsTrigger>
+          <TabsTrigger value="active">
+            Expresiones Activas
+            {globalSearchTerm && globalSearchResults.active.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                {globalSearchResults.active.length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="archived">
+            Expresiones Archivadas
+            {globalSearchTerm && globalSearchResults.archived.length > 0 && (
+              <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                {globalSearchResults.archived.length}
+              </span>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="active" className="mt-6">
           <ExpresionesTable
-            expresiones={expresiones.filter((exp) => !exp.archivado)}
+            expresiones={globalSearchTerm ? globalSearchResults.active : expresiones.filter((exp) => !exp.archivado)}
             years={years}
             tagMap={tagMap}
             hideStatusFilter={true}
@@ -381,7 +450,7 @@ export default function ExpresionesPage() {
 
         <TabsContent value="archived" className="mt-6">
           <ExpresionesTable
-            expresiones={expresiones.filter((exp) => exp.archivado)}
+            expresiones={globalSearchTerm ? globalSearchResults.archived : expresiones.filter((exp) => exp.archivado)}
             years={years}
             tagMap={tagMap}
             hideStatusFilter={true}
