@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
 
     try {
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://aqplatform.app",
+        redirectTo: "https://www.aqplatform.app",
       })
 
       if (resetError) {
