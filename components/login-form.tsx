@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createClientClient } from "@/lib/supabase-client"
 import { toast } from "sonner" // Asumiendo que estás usando sonner para los toasts
+import Link from "next/link"
 
 export function LoginForm({ isLoggedIn = false }) {
   const [email, setEmail] = useState("")
@@ -112,6 +113,14 @@ export function LoginForm({ isLoggedIn = false }) {
           <Button disabled={isLoading} type="submit">
             {isLoading ? "Iniciando sesión..." : "Iniciar sesión"}
           </Button>
+          <div className="text-center">
+            <Link
+              href="/reset-password"
+              className="text-sm text-muted-foreground hover:text-primary underline-offset-4 hover:underline"
+            >
+              ¿Olvidó su contraseña?
+            </Link>
+          </div>
         </div>
       </form>
       {error && (

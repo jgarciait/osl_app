@@ -1,61 +1,53 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import type React from "react"
 
-export function useSafeResizeObserver<T extends HTMLElement>(callback?: (entry: ResizeObserverEntry) => void) {
-  const [size, setSize] = useState({ width: 0, height: 0 })
-  const elementRef = useRef<T | null>(null)
+import { useEffect, useRef } from "react"
+
+export function useSafeResizeObserver<T extends Element>(
+  callback: (entries: ResizeObserverEntry[], observer: ResizeObserver) => void,
+  deps: React.DependencyList = [],
+) {
+  const elementRef = useRef<T>(null)
   const observerRef = useRef<ResizeObserver | null>(null)
-  const frameRef = useRef<number | null>(null)
 
   useEffect(() => {
     const element = elementRef.current
     if (!element) return
 
-    // Clean up any existing observer
-    if (observerRef.current) {
-      observerRef.current.disconnect()
+    // Debounce the callback to prevent rapid successive calls
+    let timeoutId: NodeJS.Timeout
+    const debouncedCallback = (entries: ResizeObserverEntry[], observer: ResizeObserver) => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        try {
+          callback(entries, observer)
+        } catch (error) {
+          // Silently handle ResizeObserver loop errors
+          if (error instanceof Error && error.message.includes("ResizeObserver loop")) {
+            console.debug("ResizeObserver loop detected and handled")
+            return
+          }
+          console.error("ResizeObserver error:", error)
+        }
+      }, 0)
     }
 
-    // Create a new observer with debounced updates
-    observerRef.current = new ResizeObserver((entries) => {
-      const entry = entries[0]
-
-      // Use requestAnimationFrame to throttle updates
-      if (frameRef.current) {
-        cancelAnimationFrame(frameRef.current)
-      }
-
-      frameRef.current = requestAnimationFrame(() => {
-        if (entry) {
-          const { width, height } = entry.contentRect
-          setSize({ width, height })
-
-          if (callback) {
-            callback(entry)
-          }
-        }
-      })
-    })
-
-    // Start observing
     try {
+      observerRef.current = new ResizeObserver(debouncedCallback)
       observerRef.current.observe(element)
     } catch (error) {
-      console.warn("ResizeObserver error:", error)
+      console.error("Failed to create ResizeObserver:", error)
     }
 
-    // Cleanup
     return () => {
-      if (frameRef.current) {
-        cancelAnimationFrame(frameRef.current)
-      }
-
+      clearTimeout(timeoutId)
       if (observerRef.current) {
         observerRef.current.disconnect()
+        observerRef.current = null
       }
     }
-  }, [callback])
+  }, [callback, ...deps])
 
-  return { ref: elementRef, size }
+  return elementRef
 }

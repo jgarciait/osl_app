@@ -27,6 +27,9 @@ export function createClientClient() {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
+        flowType: "pkce",
+        // Override the default redirect URL to use aqplatform.app
+        redirectTo: "https://aqplatform.app",
       },
       realtime: {
         params: {
