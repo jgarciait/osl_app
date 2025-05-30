@@ -9,21 +9,6 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+}
 
-  async rewrites() {
-    return [
-      {
-        source: '/reset-password/confirm/auth/confirm', // The problematic path
-        destination: '/reset-password/confirm',          // The correct page Next.js should serve
-      },
-      // You can add other rewrites here if needed
-    ];
-  },
-
-  // Ensure experimental.serverActions is true if you are using Server Actions
-  experimental: {
-    serverActions: true,
-  },
-};
-
-export default nextConfig;
+export default nextConfig
