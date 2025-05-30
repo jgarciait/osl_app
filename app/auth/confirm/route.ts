@@ -1,65 +1,84 @@
-import type { EmailOtpType } from "@supabase/supabase-js"
 import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
+import type { EmailOtpType } from "@supabase/supabase-js"
 
-// Suggest to Vercel that this route should be dynamic
 export const dynamic = "force-dynamic"
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
-  const token_hash = searchParams.get("token_hash")
+  const tokenHash = searchParams.get("token_hash")
   const type = searchParams.get("type") as EmailOtpType | null
+  const next = searchParams.get("next") // Will be "/account/update-password" from your link
 
-  console.log(`[AQPlatform Auth Confirm] Request for /auth/confirm. Token: ${!!token_hash}, Type: ${type}`)
+  console.log(
+    `[AQPlatform AuthConfirm] START - Path: /auth/confirm, Token: ${!!tokenHash}, Type: ${type}, Next: ${next}`,
+  )
 
-  // For password recovery, we'll verify the OTP here to establish a session,
-  // then redirect to the page that shows the password update form.
-  if (token_hash && type === "recovery") {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    const { error: otpError } = await supabase.auth.verifyOtp({
-      type: "recovery",
-      token_hash,
-    })
-
-    if (otpError) {
-      console.error("[AQPlatform Auth Confirm] Recovery OTP verification failed:", otpError.message)
-      const errorPageUrl = new URL("/auth/auth-code-error", origin)
-      errorPageUrl.searchParams.set("error", "invalid_link")
-      errorPageUrl.searchParams.set("message", "Password reset link is invalid or has expired.")
-      return NextResponse.redirect(errorPageUrl)
-    }
-
-    // OTP verified successfully, session is established.
-    // Redirect to the page where the user can enter their new password.
-    // This page will use the established session to authorize the password update.
-    const resetPasswordPageUrl = new URL("/reset-password/confirm", origin)
-    // Pass original params for clarity or if the page wants to re-verify, though session is key
-    resetPasswordPageUrl.searchParams.set("token_hash", token_hash)
-    resetPasswordPageUrl.searchParams.set("type", type)
-    console.log(`[AQPlatform Auth Confirm] Recovery OTP success. Redirecting to: ${resetPasswordPageUrl.toString()}`)
-    return NextResponse.redirect(resetPasswordPageUrl)
+  if (!tokenHash || !type) {
+    console.error("[AQPlatform AuthConfirm] FAIL - Missing token_hash or type.")
+    return NextResponse.redirect(new URL("/auth/auth-code-error?error=missing_parameters", origin))
   }
 
-  // Handle other OTP types if necessary (e.g., email change, magic link)
-  if (token_hash && type) {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    const { error: otherOtpError } = await supabase.auth.verifyOtp({ type, token_hash })
-
-    if (!otherOtpError) {
-      const next = searchParams.get("next") ?? "/"
-      console.log(`[AQPlatform Auth Confirm] Other OTP type '${type}' success. Redirecting to: ${next}`)
-      return NextResponse.redirect(new URL(next, origin))
-    } else {
-      console.error(`[AQPlatform Auth Confirm] Other OTP type '${type}' verification failed:`, otherOtpError.message)
+  if (type === "recovery") {
+    if (!next) {
+      console.error("[AQPlatform AuthConfirm] FAIL - 'next' parameter is missing for recovery type.")
+      return NextResponse.redirect(new URL("/auth/auth-code-error?error=missing_next_param", origin))
     }
-  }
 
-  // Fallback for missing parameters or unhandled types/errors
-  console.log("[AQPlatform Auth Confirm] Invalid parameters or unhandled case. Redirecting to error page.")
-  const defaultErrorUrl = new URL("/auth/auth-code-error", origin)
-  defaultErrorUrl.searchParams.set("error", "invalid_request")
-  return NextResponse.redirect(defaultErrorUrl)
+    try {
+      const cookieStore = cookies()
+      const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
+
+      const { data, error: otpError } = await supabase.auth.verifyOtp({
+        token_hash: tokenHash,
+        type: "recovery",
+      })
+
+      console.log("[AQPlatform AuthConfirm] Supabase verifyOtp result:", {
+        success: !!data?.user,
+        error: otpError?.message,
+        userId: data?.user?.id,
+      })
+
+      if (otpError || !data?.user) {
+        console.error("[AQPlatform AuthConfirm] FAIL - Supabase token verification failed:", otpError?.message)
+        return NextResponse.redirect(new URL("/auth/auth-code-error?error=invalid_or_expired_token", origin))
+      }
+
+      // OTP verification successful, user session is established by verifyOtp.
+      // Create a custom temporary token.
+      const tempTokenData = {
+        userId: data.user.id,
+        email: data.user.email,
+        timestamp: Date.now(),
+        purpose: "password_reset_access", // Specific purpose
+      }
+      // Use a more URL-friendly name for the token if needed, e.g., "reset_session_token"
+      const customTempToken = Buffer.from(JSON.stringify(tempTokenData)).toString("base64")
+
+      console.log("[AQPlatform AuthConfirm] SUCCESS - Created custom temp token for user:", data.user.id)
+
+      // Redirect to the 'next' page (e.g., /account/update-password)
+      // with the custom temporary token.
+      const redirectUrl = new URL(next, origin) // 'next' is like "/account/update-password"
+      redirectUrl.searchParams.set("reset_token", customTempToken) // Pass the custom token
+
+      // Clean up Supabase OTP params from the redirect URL as they are no longer needed
+      redirectUrl.searchParams.delete("token_hash")
+      redirectUrl.searchParams.delete("type")
+      // Also remove 'next' if it was part of the original 'next' value, though unlikely here
+      redirectUrl.searchParams.delete("next")
+
+      console.log(`[AQPlatform AuthConfirm] Redirecting to: ${redirectUrl.toString()}`)
+      return NextResponse.redirect(redirectUrl)
+    } catch (error) {
+      console.error("[AQPlatform AuthConfirm] FAIL - Unexpected error during recovery:", error)
+      return NextResponse.redirect(new URL("/auth/auth-code-error?error=server_error", origin))
+    }
+  } else {
+    // Handle other OTP types if necessary (e.g., email confirmation, magic link)
+    console.warn(`[AQPlatform AuthConfirm] Unhandled OTP type: ${type}. Redirecting to error page.`)
+    return NextResponse.redirect(new URL(`/auth/auth-code-error?error=unsupported_otp_type&type=${type}`, origin))
+  }
 }
