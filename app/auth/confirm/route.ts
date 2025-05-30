@@ -3,6 +3,8 @@ import { type NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
 
+export const dynamic = "force-dynamic" // Ensures the route is not statically cached
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const token_hash = searchParams.get("token_hash")
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
   if (token_hash && type) {
     const cookieStore = cookies()
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-    const { error } = await supabase.auth.verifyOtp({
+    const { error, data } = await supabase.auth.verifyOtp({
       type,
       token_hash,
     })
@@ -36,15 +38,20 @@ export async function GET(request: NextRequest) {
       redirectTo.searchParams.delete("type")
       redirectTo.searchParams.delete("next") // Clean up all auth params
       return NextResponse.redirect(redirectTo)
+    } else {
+      console.error("Supabase verifyOtp error for non-recovery:", error.message)
     }
   }
 
   // If token_hash or type is missing, or if verifyOtp failed for non-recovery types,
-  // or if it's a recovery attempt that somehow missed the first 'if' block (should not happen).
+  // or if it's a recovery attempt that somehow missed the first 'if' block.
   const errorRedirectUrl = new URL("/auth/auth-code-error", request.nextUrl.origin)
   errorRedirectUrl.searchParams.set("error_description", "Invalid or expired confirmation link.")
   if (type) {
     errorRedirectUrl.searchParams.set("type", type)
+  }
+  if (token_hash) {
+    errorRedirectUrl.searchParams.set("has_token", "true")
   }
   return NextResponse.redirect(errorRedirectUrl)
 }
