@@ -45,7 +45,7 @@ export default function LoginPage() {
           <blockquote className="space-y-2">
             <p className="text-lg">
               "Este sistema permite gestionar las expresiones ciudadanas y facilitar la integración de los ciudadanos en
-              los procesos legislativos. (Test 3)"
+              los procesos legislativos. (Test 4)"
             </p>
             <footer className="text-sm">Oficina de Participación Ciudadana</footer>
           </blockquote>
