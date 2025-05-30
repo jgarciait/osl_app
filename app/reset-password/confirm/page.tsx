@@ -1,47 +1,55 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { useForm } from "react-hook-form"
+import * as z from "zod"
 import { useRouter, useSearchParams } from "next/navigation"
-import Image from "next/image"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
+import { useToast } from "@/components/ui/use-toast"
 import { Button } from "@/components/ui/button"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { createClientClient } from "@/lib/supabase-client"
-import { KeyRound, AlertCircle, CheckCircle, Eye, EyeOff, Loader2 } from "lucide-react"
-import Link from "next/link"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { supabase } from "@/lib/supabase"
 
-export default function ResetPasswordConfirmPage() {
+const formSchema = z.object({
+  password: z.string().min(8, {
+    message: "La contraseña debe tener al menos 8 caracteres.",
+  }),
+})
+
+const ResetPasswordConfirmPage = () => {
+  const [isVerifying, setIsVerifying] = useState(true)
+  const [canUpdatePassword, setCanUpdatePassword] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [message, setMessage] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
-  const supabase = createClientClient()
+  const { toast } = useToast()
+  const [userEmail, setUserEmail] = useState<string | null>(null)
 
-  const [password, setPassword] = useState("")
-  const [confirmPassword, setConfirmPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [isVerifying, setIsVerifying] = useState(true)
-  const [message, setMessage] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
-  const [canUpdatePassword, setCanUpdatePassword] = useState(false)
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      password: "",
+    },
+  })
 
   useEffect(() => {
     const verifyToken = async () => {
+      setIsVerifying(true)
       try {
         const token_hash = searchParams.get("token_hash")
         const type = searchParams.get("type")
 
         if (!token_hash || type !== "recovery") {
-          setError("Enlace inválido. Falta el token de recuperación.")
+          setError("Enlace inválido. Falta el token de recuperación o el tipo es incorrecto.")
+          setCanUpdatePassword(false)
           setIsVerifying(false)
           return
         }
 
-        console.log("Verifying token hash:", token_hash)
+        console.log("Verifying token hash:", token_hash, "type:", type)
 
-        // Verify the token hash with Supabase
         const { error: verifyError } = await supabase.auth.verifyOtp({
           token_hash,
           type: "recovery",
@@ -50,17 +58,31 @@ export default function ResetPasswordConfirmPage() {
         if (verifyError) {
           console.error("Token verification failed:", verifyError)
           setError("El enlace de restablecimiento no es válido o ha expirado. Por favor, solicite uno nuevo.")
-          setIsVerifying(false)
-          return
-        }
+          setCanUpdatePassword(false)
+        } else {
+          console.log("Token verified successfully, session established.")
+          setCanUpdatePassword(true)
+          setError(null)
 
-        console.log("Token verified successfully")
-        setCanUpdatePassword(true)
-        setError(null)
-        setIsVerifying(false)
+          const {
+            data: { user },
+            error: userError,
+          } = await supabase.auth.getUser()
+          if (userError) {
+            console.error("Error fetching user after token verification:", userError)
+            // Optionally set an error or proceed without email
+          } else if (user) {
+            setUserEmail(user.email || null)
+            console.log("User email fetched:", user.email)
+          } else {
+            console.log("No user found after token verification.")
+          }
+        }
       } catch (err) {
-        console.error("Error verifying token:", err)
+        console.error("Error during token verification process:", err)
         setError("Error al verificar el enlace. Por favor, inténtelo de nuevo.")
+        setCanUpdatePassword(false)
+      } finally {
         setIsVerifying(false)
       }
     }
@@ -68,166 +90,116 @@ export default function ResetPasswordConfirmPage() {
     verifyToken()
   }, [searchParams, supabase.auth])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (!canUpdatePassword) {
-      setError("No está autorizado para actualizar la contraseña.")
-      return
-    }
-
-    if (password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.")
-      return
-    }
-
-    if (password.length < 8) {
-      setError("La contraseña debe tener al menos 8 caracteres.")
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-    setMessage(null)
-
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      const { error: updateError } = await supabase.auth.updateUser({ password })
+      const token_hash = searchParams.get("token_hash")
 
-      if (updateError) {
-        setError(`Error al actualizar la contraseña: ${updateError.message}`)
+      if (!token_hash) {
+        setError("Token hash is missing.")
+        return
+      }
+
+      const { error } = await supabase.auth.updateUser({
+        password: values.password,
+      })
+
+      if (error) {
+        console.error("Password update failed:", error)
+        setError("No se pudo actualizar la contraseña. Por favor, inténtelo de nuevo.")
+        toast({
+          title: "Error al actualizar la contraseña",
+          description: "Por favor, inténtelo de nuevo.",
+          variant: "destructive",
+        })
       } else {
-        setMessage("Su contraseña ha sido actualizada exitosamente. Será redirigido a la página de inicio de sesión.")
-
-        // Sign out to force re-login with new password
-        await supabase.auth.signOut()
+        setMessage("Contraseña actualizada con éxito. Redirigiendo...")
+        toast({
+          title: "Contraseña actualizada",
+          description: "Su contraseña ha sido actualizada con éxito.",
+        })
 
         setTimeout(() => {
           router.push("/login")
-        }, 3000)
+        }, 2000)
       }
     } catch (err) {
-      console.error("Error updating password:", err)
-      setError("Error inesperado al actualizar la contraseña. Por favor, inténtelo de nuevo.")
-    } finally {
-      setIsLoading(false)
+      console.error("Error during password update:", err)
+      setError("Error al actualizar la contraseña. Por favor, inténtelo de nuevo.")
     }
   }
 
-  if (isVerifying) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-background">
-        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="mt-4 text-muted-foreground">Verificando enlace...</p>
-      </div>
-    )
-  }
-
   return (
-    <div className="container relative flex h-screen flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
-      <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex dark:border-r">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-purple-600 to-blue-800" />
+    <div className="container relative h-[500px] flex-col items-center justify-center md:grid lg:max-w-none lg:grid-cols-2 lg:px-0">
+      <div className="relative hidden h-full flex-col bg-muted p-10 text-white lg:flex">
+        <div className="absolute inset-0 bg-zinc-900" />
         <div className="relative z-20 flex items-center text-lg font-medium">
-          <Image src="/images/logo.png" alt="Logo" width={60} height={60} className="mr-4" />
-          Sistema de Expresiones Legislativas
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="mr-2 h-6 w-6"
+          >
+            <path d="M15 6v12a3 3 0 1 1-6 0V6a3 3 0 1 1 6 0z" />
+          </svg>
+          Acme Corp
         </div>
         <div className="relative z-20 mt-auto">
           <blockquote className="space-y-2">
             <p className="text-lg">
-              "Sistema para gestionar expresiones legislativas de ciudadanos de manera eficiente y transparente."
+              &ldquo;Esta página le permite restablecer su contraseña de forma segura. Ingrese su nueva contraseña y
+              siga las instrucciones para recuperar el acceso a su cuenta.&rdquo;
             </p>
+            <footer className="text-sm">Sofia Davis</footer>
           </blockquote>
         </div>
       </div>
       <div className="lg:p-8">
         <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
           <div className="flex flex-col space-y-2 text-center">
-            <KeyRound className="mx-auto h-12 w-12 text-primary" />
             <h1 className="text-2xl font-semibold tracking-tight">Actualizar contraseña</h1>
-            {canUpdatePassword && !message && (
+            {canUpdatePassword && !message && userEmail && (
+              <p className="text-sm text-muted-foreground">
+                Actualizando contraseña para: <span className="font-medium">{userEmail}</span>
+              </p>
+            )}
+            {canUpdatePassword && !message && !userEmail && (
               <p className="text-sm text-muted-foreground">Ingrese su nueva contraseña a continuación.</p>
             )}
           </div>
-
-          {canUpdatePassword && !message && (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1 relative">
-                <Label htmlFor="password">Nueva contraseña</Label>
-                <Input
-                  id="password"
-                  placeholder="Mínimo 8 caracteres"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  disabled={isLoading}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  minLength={8}
+          {isVerifying ? (
+            <div className="text-center">Verificando enlace...</div>
+          ) : error ? (
+            <div className="text-center text-red-500">{error}</div>
+          ) : message ? (
+            <div className="text-center text-green-500">{message}</div>
+          ) : (
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Nueva contraseña</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="********" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-6 h-7 px-2"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-                <p className="text-xs text-muted-foreground">La contraseña debe tener al menos 8 caracteres</p>
-              </div>
-              <div className="space-y-1 relative">
-                <Label htmlFor="confirmPassword">Confirmar nueva contraseña</Label>
-                <Input
-                  id="confirmPassword"
-                  placeholder="Confirme su contraseña"
-                  type={showConfirmPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  disabled={isLoading}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  required
-                  minLength={8}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-6 h-7 px-2"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-              <Button type="submit" className="w-full" disabled={isLoading || !!message}>
-                {isLoading ? "Actualizando..." : "Actualizar contraseña"}
-              </Button>
-            </form>
-          )}
-
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {message && (
-            <Alert variant="default" className="bg-green-50 border-green-300 text-green-700">
-              <CheckCircle className="h-4 w-4 text-green-600" />
-              <AlertTitle>Éxito</AlertTitle>
-              <AlertDescription>{message}</AlertDescription>
-            </Alert>
-          )}
-
-          {!canUpdatePassword && !isVerifying && (
-            <div className="text-center">
-              <Link href="/reset-password" className="text-sm text-primary hover:underline">
-                Solicitar un nuevo enlace de restablecimiento
-              </Link>
-            </div>
+                <Button type="submit">Actualizar contraseña</Button>
+              </form>
+            </Form>
           )}
         </div>
       </div>
     </div>
   )
 }
+
+export default ResetPasswordConfirmPage

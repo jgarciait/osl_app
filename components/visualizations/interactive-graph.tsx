@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useLayoutEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClientClient } from "@/lib/supabase-client"
 import { useToast } from "@/components/ui/use-toast"
@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Loader2, ZoomIn, ZoomOut, RefreshCw } from "lucide-react"
 import ForceGraph2D from "react-force-graph-2d"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useSafeResizeObserver } from "@/hooks/useSafeResizeObserver"
 
 /* ---------- tipos ---------- */
 interface GraphNode {
@@ -48,8 +47,18 @@ export function InteractiveGraph() {
   }
 
   /* ---------- medidor de tamaño ---------- */
-  const { ref: wrapperRef, size: observedHookSize } = useSafeResizeObserver<HTMLDivElement>()
-  const size = { w: observedHookSize.width, h: observedHookSize.height }
+  const wrapperRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+
+  // mide SOLO cuando wrapper cambia de tamaño
+  useLayoutEffect(() => {
+    const el = wrapperRef.current
+    if (!el) return
+
+    const ro = new ResizeObserver(() => setSize({ w: el.clientWidth, h: el.clientHeight }))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   /* ---------- carga de datos ---------- */
   useEffect(() => {
@@ -71,34 +80,34 @@ export function InteractiveGraph() {
 
       // 2. Obtener relaciones entre expresiones y temas
       const { data: expresionTemas, error: temasError } = await supabase.from("expresion_temas").select(`
-        expresion_id,
-        tema:tema_id (
-          id, 
-          nombre
-        )
-      `)
+          expresion_id,
+          tema:tema_id (
+            id, 
+            nombre
+          )
+        `)
 
       if (temasError) throw temasError
 
       // 3. Obtener relaciones entre expresiones y comités
       const { data: expresionComites, error: comitesError } = await supabase.from("expresion_comites").select(`
-        expresion_id,
-        comite:comite_id (
-          id, 
-          nombre
-        )
-      `)
+          expresion_id,
+          comite:comite_id (
+            id, 
+            nombre
+          )
+        `)
 
       if (comitesError) throw comitesError
 
       // 4. Obtener etiquetas (si existe una relación con etiquetas)
       const { data: etiquetas, error: etiquetasError } = await supabase.from("documento_etiquetas").select(`
-        documento_id,
-        etiqueta:etiqueta_id (
-          id,
-          nombre
-        )
-      `)
+          documento_id,
+          etiqueta:etiqueta_id (
+            id,
+            nombre
+          )
+        `)
 
       if (etiquetasError && etiquetasError.code !== "PGRST116") {
         // PGRST116 significa que la tabla no existe, lo cual es aceptable
