@@ -44,6 +44,30 @@ export function LoginForm({ isLoggedIn = false }) {
         return
       }
 
+      // Check if user is active in profile table
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("active")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (profileError) {
+        console.error("Error al verificar perfil de usuario:", profileError)
+        setError("Error al verificar el estado del usuario. Por favor, contacta al administrador.")
+        setIsLoading(false)
+        return
+      }
+
+      if (!profileData?.active) {
+        // User is not active, sign them out and show error
+        await supabase.auth.signOut()
+        setError(
+          "Tu cuenta está desactivada. Por favor, contacta al administrador del sistema para reactivar tu cuenta.",
+        )
+        setIsLoading(false)
+        return
+      }
+
       // Verificar si el usuario pertenece al departamento con id=1
       if (authData.user) {
         const { data: belongsToDept, error: deptError } = await supabase.rpc("user_belongs_to_department", {

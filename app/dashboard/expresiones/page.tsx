@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { createClientClient, cachedQuery } from "@/lib/supabase-client"
 import { ExpresionesTable } from "@/components/expresiones-table"
 import { useToast } from "@/components/ui/use-toast"
@@ -30,8 +30,156 @@ export default function ExpresionesPage() {
     subscriptions.current = []
   }
 
+  // Move setupRealtimeSubscriptions outside useEffect and make it a useCallback
+  const setupRealtimeSubscriptions = useCallback(
+    (userMap, temasMap, expresionTemasMap) => {
+      // Limpiar suscripciones existentes antes de crear nuevas
+      cleanupSubscriptions()
+
+      // Suscribirse a cambios en expresiones
+      const expresionesSubscription = supabase
+        .channel(`expresiones-changes-${Date.now()}`) // Add timestamp to make channel unique
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "expresiones",
+          },
+          (payload) => {
+            console.log("Cambio en expresiones:", payload)
+
+            if (payload.eventType === "INSERT") {
+              // Procesar nueva expresión
+              const newExpresion = payload.new
+
+              // Obtener el nombre del tema
+              let tema_nombre = "Sin asignar"
+              if (newExpresion.tema) {
+                tema_nombre = temasMap.get(newExpresion.tema) || "Sin asignar"
+              }
+
+              // Obtener el nombre del usuario asignado
+              const assigned_to_name = newExpresion.assigned_to ? userMap.get(newExpresion.assigned_to) || null : null
+
+              // Añadir la nueva expresión al estado
+              setExpresiones((prev) => [
+                {
+                  ...newExpresion,
+                  tema_nombre,
+                  assigned_to_name,
+                  document_tags: [],
+                  document_tag_names: [],
+                },
+                ...prev,
+              ])
+            } else if (payload.eventType === "UPDATE") {
+              // Actualizar expresión existente
+              setExpresiones((prev) =>
+                prev.map((exp) => {
+                  if (exp.id === payload.new.id) {
+                    // Obtener el nombre del tema
+                    let tema_nombre = "Sin asignar"
+                    if (payload.new.tema) {
+                      tema_nombre = temasMap.get(payload.new.tema) || "Sin asignar"
+                    }
+
+                    // Obtener el nombre del usuario asignado
+                    const assigned_to_name = payload.new.assigned_to
+                      ? userMap.get(payload.new.assigned_to) || null
+                      : null
+
+                    return {
+                      ...payload.new,
+                      tema_nombre,
+                      assigned_to_name,
+                      document_tags: exp.document_tags || [],
+                      document_tag_names: exp.document_tag_names || [],
+                    }
+                  }
+                  return exp
+                }),
+              )
+            } else if (payload.eventType === "DELETE") {
+              // Eliminar expresión
+              setExpresiones((prev) => prev.filter((exp) => exp.id !== payload.old.id))
+            }
+          },
+        )
+        .subscribe()
+
+      // Suscribirse a cambios en expresion_comites
+      const expresionComitesSubscription = supabase
+        .channel(`expresion-comites-changes-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "expresion_comites",
+          },
+          (payload) => {
+            console.log("Cambio en expresion_comites:", payload)
+            // Aquí podrías implementar lógica específica para actualizar las relaciones
+            // entre expresiones y comités si es necesario
+          },
+        )
+        .subscribe()
+
+      // Suscribirse a cambios en expresion_clasificaciones
+      const expresionClasificacionesSubscription = supabase
+        .channel(`expresion-clasificaciones-changes-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "expresion_clasificaciones",
+          },
+          (payload) => {
+            console.log("Cambio en expresion_clasificaciones:", payload)
+            // Aquí podrías implementar lógica específica para actualizar las relaciones
+            // entre expresiones y clasificaciones si es necesario
+          },
+        )
+        .subscribe()
+
+      // Suscribirse a cambios en documentos
+      const documentosSubscription = supabase
+        .channel(`documentos-changes-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "documentos",
+          },
+          (payload) => {
+            console.log("Cambio en documentos:", payload)
+            // Aquí podrías implementar lógica específica para actualizar los documentos
+            // si es necesario en esta vista
+          },
+        )
+        .subscribe()
+
+      // Guardar referencias a las suscripciones para limpiarlas después
+      subscriptions.current = [
+        expresionesSubscription,
+        expresionComitesSubscription,
+        expresionClasificacionesSubscription,
+        documentosSubscription,
+      ]
+    },
+    [supabase],
+  )
+
+  // Update the useEffect to use the callback and have better dependency management
   useEffect(() => {
+    let isMounted = true
+
     const fetchData = async () => {
+      if (!isMounted) return
+
       try {
         setIsLoading(true)
 
@@ -50,7 +198,7 @@ export default function ExpresionesPage() {
         })
 
         // Guardar el mapa de etiquetas
-        setTagMap(etiquetasMap)
+        if (isMounted) setTagMap(etiquetasMap)
 
         // Obtener los perfiles de usuarios con caché
         const profiles = await cachedQuery("profiles", () => supabase.from("profiles").select("id, nombre, apellido"))
@@ -83,7 +231,6 @@ export default function ExpresionesPage() {
             tema
           `)
           .order("created_at", { ascending: false })
-        // Removed limit to fetch all expressions
 
         if (error) {
           console.error("Error al obtener expresiones:", error)
@@ -197,171 +344,40 @@ export default function ExpresionesPage() {
           })
         }
 
-        setExpresiones(processedData)
+        if (isMounted) {
+          setExpresiones(processedData)
 
-        // Obtener años únicos para el filtro
-        const uniqueYears = [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a)
-        setYears(uniqueYears)
+          // Obtener años únicos para el filtro
+          const uniqueYears = [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a)
+          setYears(uniqueYears)
 
-        // Configurar suscripciones en tiempo real
-        setupRealtimeSubscriptions(userMap, temasMap, expresionTemasMap)
+          // Configurar suscripciones en tiempo real
+          setupRealtimeSubscriptions(userMap, temasMap, expresionTemasMap)
+        }
       } catch (error) {
         console.error("Error al cargar datos:", error)
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudieron cargar las expresiones. Por favor, intente nuevamente.",
-        })
+        if (isMounted) {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No se pudieron cargar las expresiones. Por favor, intente nuevamente.",
+          })
+        }
       } finally {
-        setIsLoading(false)
+        if (isMounted) {
+          setIsLoading(false)
+        }
       }
     }
 
     fetchData()
 
-    // Limpiar suscripciones al desmontar
+    // Cleanup function
     return () => {
+      isMounted = false
       cleanupSubscriptions()
     }
-  }, [supabase, toast])
-
-  // Función para configurar suscripciones en tiempo real
-  const setupRealtimeSubscriptions = (userMap, temasMap, expresionTemasMap) => {
-    // Limpiar suscripciones existentes
-    cleanupSubscriptions()
-
-    // Suscribirse a cambios en expresiones
-    const expresionesSubscription = supabase
-      .channel("expresiones-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "expresiones",
-        },
-        (payload) => {
-          console.log("Cambio en expresiones:", payload)
-
-          if (payload.eventType === "INSERT") {
-            // Procesar nueva expresión
-            const newExpresion = payload.new
-
-            // Obtener el nombre del tema
-            let tema_nombre = "Sin asignar"
-            if (newExpresion.tema) {
-              tema_nombre = temasMap.get(newExpresion.tema) || "Sin asignar"
-            }
-
-            // Obtener el nombre del usuario asignado
-            const assigned_to_name = newExpresion.assigned_to ? userMap.get(newExpresion.assigned_to) || null : null
-
-            // Añadir la nueva expresión al estado
-            setExpresiones((prev) => [
-              {
-                ...newExpresion,
-                tema_nombre,
-                assigned_to_name,
-                document_tags: [],
-                document_tag_names: [],
-              },
-              ...prev,
-            ])
-          } else if (payload.eventType === "UPDATE") {
-            // Actualizar expresión existente
-            setExpresiones((prev) =>
-              prev.map((exp) => {
-                if (exp.id === payload.new.id) {
-                  // Obtener el nombre del tema
-                  let tema_nombre = "Sin asignar"
-                  if (payload.new.tema) {
-                    tema_nombre = temasMap.get(payload.new.tema) || "Sin asignar"
-                  }
-
-                  // Obtener el nombre del usuario asignado
-                  const assigned_to_name = payload.new.assigned_to ? userMap.get(payload.new.assigned_to) || null : null
-
-                  return {
-                    ...payload.new,
-                    tema_nombre,
-                    assigned_to_name,
-                    document_tags: exp.document_tags || [],
-                    document_tag_names: exp.document_tag_names || [],
-                  }
-                }
-                return exp
-              }),
-            )
-          } else if (payload.eventType === "DELETE") {
-            // Eliminar expresión
-            setExpresiones((prev) => prev.filter((exp) => exp.id !== payload.old.id))
-          }
-        },
-      )
-      .subscribe()
-
-    // Suscribirse a cambios en expresion_comites
-    const expresionComitesSubscription = supabase
-      .channel("expresion-comites-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "expresion_comites",
-        },
-        (payload) => {
-          console.log("Cambio en expresion_comites:", payload)
-          // Aquí podrías implementar lógica específica para actualizar las relaciones
-          // entre expresiones y comités si es necesario
-        },
-      )
-      .subscribe()
-
-    // Suscribirse a cambios en expresion_clasificaciones
-    const expresionClasificacionesSubscription = supabase
-      .channel("expresion-clasificaciones-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "expresion_clasificaciones",
-        },
-        (payload) => {
-          console.log("Cambio en expresion_clasificaciones:", payload)
-          // Aquí podrías implementar lógica específica para actualizar las relaciones
-          // entre expresiones y clasificaciones si es necesario
-        },
-      )
-      .subscribe()
-
-    // Suscribirse a cambios en documentos
-    const documentosSubscription = supabase
-      .channel("documentos-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "documentos",
-        },
-        (payload) => {
-          console.log("Cambio en documentos:", payload)
-          // Aquí podrías implementar lógica específica para actualizar los documentos
-          // si es necesario en esta vista
-        },
-      )
-      .subscribe()
-
-    // Guardar referencias a las suscripciones para limpiarlas después
-    subscriptions.current = [
-      expresionesSubscription,
-      expresionComitesSubscription,
-      expresionClasificacionesSubscription,
-      documentosSubscription,
-    ]
-  }
+  }, [supabase, toast, setupRealtimeSubscriptions])
 
   // Función para realizar búsqueda global en todas las expresiones
   const handleGlobalSearch = (searchTerm: string) => {
