@@ -5,28 +5,20 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/**
- * Generates a formatted expression number.
- * Example: For year 2024, temaCodigo "SALUD", sequence 1 -> "2024-SALUD-0001"
- * @param year The year of the expression.
- * @param temaCodigo The code of the topic.
- * @param sequence The sequence number.
- * @param padding The number of digits for the sequence (e.g., 4 for "0001").
- * @returns The formatted expression number string.
- */
-export function generateExpressionNumber(
-  year: number,
-  temaCodigo: string,
-  sequence: number,
-  padding = 4, // Default padding to 4 digits
-): string {
-  if (!year || !temaCodigo || sequence === undefined || sequence === null) {
-    // Return a placeholder or empty string if essential parts are missing
-    // This helps prevent errors if called with incomplete data during form initialization
-    return ""
-  }
-  const sequenceString = String(sequence).padStart(padding, "0")
-  return `${year}-${temaCodigo.toUpperCase()}-${sequenceString}`
+export function generateExpressionNumber(year: number, sequence: number, temaCodigo?: string): string {
+  // Ensure temaCodigo is a string and provide fallback
+  const codigo = typeof temaCodigo === "string" && temaCodigo.trim() ? temaCodigo.trim().toUpperCase() : "RNAR"
+
+  // Ensure sequence is a valid number
+  const validSequence = typeof sequence === "number" && !isNaN(sequence) ? sequence : 1
+
+  // Ensure year is a valid number
+  const validYear = typeof year === "number" && !isNaN(year) ? year : new Date().getFullYear()
+
+  // Format sequence with leading zeros (4 digits)
+  const sequenceStr = validSequence.toString().padStart(4, "0")
+
+  return `${validYear}-${sequenceStr}-${codigo}`
 }
 
 /**
@@ -45,7 +37,6 @@ export function debounce<F extends (...args: any[]) => any>(
 ): (...args: Parameters<F>) => void {
   let timeout: NodeJS.Timeout | null
   return function executedFunction(...args: Parameters<F>) {
-    
     const later = () => {
       timeout = null
       if (!immediate) func.apply(this, args)
