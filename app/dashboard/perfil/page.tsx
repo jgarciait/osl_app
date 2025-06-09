@@ -23,10 +23,6 @@ export default async function PerfilPage() {
   return (
     <div className="w-full py-6 px-4">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Mi Perfil</h1>
-          <p className="text-muted-foreground">Gestione su información personal y configuración de seguridad</p>
-        </div>
         <ProfileForm profile={profile} user={session.user} />
       </div>
     </div>
