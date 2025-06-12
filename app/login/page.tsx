@@ -52,6 +52,10 @@ export default function LoginPage() {
         </div>
       </div>
       <div className="lg:p-8">
+        <h1 className="text-2xl text-red-500 font-semibold tracking-tight">Aplicación Fuera de Servicio - Servicio de Base de Datos Afectado</h1>
+        <p className="text-sm text-muted-foreground">Por favor, inténtelo más tarde.</p>
+        <a href="https://status.supabase.com" target="_blank" rel="noopener noreferrer"></a>
+        <br />
         <div className="flex flex-col items-center mb-8">
           <Image
             src="https://static.wixstatic.com/media/5be21a_ecb3337d08fc4bb4be35f8b2b3cd6780~mv2.png/v1/fill/w_424,h_254,al_c,q_85,usm_0.66_1.00_0.01,enc_avif,quality_auto/Logo%20PC%202021-02.png"
