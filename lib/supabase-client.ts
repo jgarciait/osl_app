@@ -1,21 +1,24 @@
 import { createBrowserClient } from "@supabase/ssr"
-import type { SupabaseClient } from "@supabase/supabase-js"
 
 // Creamos una variable para almacenar la instancia del cliente
-let supabaseClient: SupabaseClient | null = null
+let supabaseClient: ReturnType<typeof createBrowserClient> | null = null
 
 export function createClientClient() {
   // Only create a client when in the browser
   if (typeof window === "undefined") {
-    return null
+    console.warn("Attempted to create Supabase client during SSR. Returning null client.")
+    // Return a mock client during SSR to prevent errors
+    return {
+      auth: {
+        getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+        getUser: () => Promise.resolve({ data: { user: null }, error: null }),
+        signOut: () => Promise.resolve({ error: null }),
+      },
+    } as any
   }
 
-  // If we already have a client instance, return it
-  if (supabaseClient) {
-    return supabaseClient
-  }
-
-  // Create a new client instance
+  // En desarrollo, siempre creamos una nueva instancia para evitar problemas con HMR
+  // En producción, también creamos una nueva instancia para evitar problemas con sesiones obsoletas
   supabaseClient = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -25,6 +28,8 @@ export function createClientClient() {
         persistSession: true,
         detectSessionInUrl: true,
         flowType: "pkce",
+        // Override the default redirect URL to use aqplatform.app
+        redirectTo: "https://aqplatform.app",
       },
       realtime: {
         params: {
@@ -80,13 +85,9 @@ export async function handleAuthError(error: any) {
  * @param ttl Tiempo de vida de la caché en milisegundos (default: 60000ms = 1min)
  */
 export const cachedQuery = (() => {
-  const cache = new Map<string, { data: any; timestamp: number }>()
+  const cache = new Map()
 
-  return async <T>(
-    key: string,
-    queryFn: () => Promise<T>,
-    ttl = 60000
-  ): Promise<T> => {
+  return async (key, queryFn, ttl = 60000) => {
     const now = Date.now()
     const cachedItem = cache.get(key)
 
@@ -96,10 +97,12 @@ export const cachedQuery = (() => {
 
     const result = await queryFn()
 
-    cache.set(key, {
-      data: result,
-      timestamp: now,
-    })
+    if (!result.error) {
+      cache.set(key, {
+        data: result,
+        timestamp: now,
+      })
+    }
 
     return result
   }

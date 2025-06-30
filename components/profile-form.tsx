@@ -255,7 +255,7 @@ export function ProfileForm({ profile, user }) {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="h-full">
           <form onSubmit={handlePasswordSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="currentPassword">Contraseña Actual</Label>

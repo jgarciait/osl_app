@@ -22,10 +22,7 @@ const nextConfig = {
 
   // Ensure experimental.serverActions is true if you are using Server Actions
   experimental: {
-    serverActions: {
-      allowedOrigins: ['localhost:3001'],
-      bodySizeLimit: '2mb'
-    },
+    serverActions: true,
   },
 };
 

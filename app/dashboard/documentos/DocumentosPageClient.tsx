@@ -25,43 +25,67 @@ export function DocumentosPageClient() {
       try {
         setIsLoading(true)
 
-        // Obtener todos los documentos con información de expresiones
-        const { data, error } = await supabase
-          .from("documentos")
-          .select(`
-          id, 
-          nombre, 
-          ruta, 
-          tipo, 
-          tamano, 
-          created_at,
-          expresion_id,
-          expresiones (
-            id,
-            numero,
-            nombre,
-            email
-          )
-        `)
-          .order("created_at", { ascending: false })
+        // Función para obtener todos los documentos con paginación
+        const fetchAllDocuments = async () => {
+          let allDocuments = []
+          let from = 0
+          const batchSize = 1000
+          let hasMore = true
 
-        if (error) throw error
+          while (hasMore) {
+            const { data, error } = await supabase
+              .from("documentos")
+              .select(`
+                id, 
+                nombre, 
+                ruta, 
+                tipo, 
+                tamano, 
+                created_at,
+                expresion_id,
+                expresiones (
+                  id,
+                  numero,
+                  nombre,
+                  email
+                )
+              `)
+              .range(from, from + batchSize - 1)
+              .order("created_at", { ascending: false })
 
-        // Temporalmente omitimos el conteo del bucket debido a problemas con la API
-        const storageCount = 0 // Valor temporal
-        console.log("Conteo del bucket temporalmente deshabilitado")
+            if (error) throw error
+
+            if (data && data.length > 0) {
+              allDocuments = [...allDocuments, ...data]
+              from += batchSize
+
+              // Si recibimos menos documentos que el tamaño del lote, hemos llegado al final
+              if (data.length < batchSize) {
+                hasMore = false
+              }
+            } else {
+              hasMore = false
+            }
+          }
+
+          return allDocuments
+        }
+
+        // Obtener todos los documentos
+        const allDocuments = await fetchAllDocuments()
+        console.log(`Total documentos obtenidos: ${allDocuments.length}`)
 
         // Obtener etiquetas para cada documento
         const documentosConEtiquetas = await Promise.all(
-          data.map(async (documento) => {
+          allDocuments.map(async (documento) => {
             const { data: etiquetasData, error: etiquetasError } = await supabase
               .from("documento_etiquetas")
               .select(`
-              etiqueta_id,
-              etiquetas (
-                id, nombre, color
-              )
-            `)
+                etiqueta_id,
+                etiquetas (
+                  id, nombre, color
+                )
+              `)
               .eq("documento_id", documento.id)
 
             if (etiquetasError) {
@@ -118,20 +142,25 @@ export function DocumentosPageClient() {
         setMonthlyDocuments(monthlyData)
         setCurrentMonthCount(currentMonthDocs.length)
 
-        // Log para depuración
-        console.log(`Documentos en la base de datos: ${total}`)
-        console.log(`Documentos en el bucket de almacenamiento: ${storageCount}`)
+        // Verificar conteo total en la base de datos
+        const { count, error: countError } = await supabase
+          .from("documentos")
+          .select("*", { count: "exact", head: true })
 
-        // Si hay discrepancia, mostrar una alerta
-        if (total !== storageCount) {
-          console.warn(
-            `Discrepancia detectada: ${storageCount} archivos en el bucket vs ${total} registros en la base de datos`,
-          )
-          toast({
-            title: "Información",
-            description: `Hay una discrepancia entre los archivos almacenados (${storageCount}) y los registros en la base de datos (${total})`,
-            duration: 5000,
-          })
+        if (!countError && count !== null) {
+          console.log(`Conteo total en la base de datos: ${count}`)
+          console.log(`Documentos cargados: ${total}`)
+
+          if (count !== total) {
+            console.warn(
+              `Discrepancia detectada: ${count} documentos en la base de datos vs ${total} documentos cargados`,
+            )
+            toast({
+              title: "Información",
+              description: `Se encontraron ${count} documentos en total, se cargaron ${total} documentos`,
+              duration: 5000,
+            })
+          }
         }
       } catch (error) {
         console.error("Error al cargar documentos:", error)
@@ -150,17 +179,21 @@ export function DocumentosPageClient() {
 
   // Función para calcular documentos por mes
   const calculateMonthlyDocuments = (docs) => {
+    const currentYear = new Date().getFullYear()
     const monthlyData = Array(12)
       .fill(0)
       .map((_, index) => ({
-        name: new Date(2023, index, 1).toLocaleString("es-ES", { month: "short" }),
+        name: new Date(currentYear, index, 1).toLocaleString("es-ES", { month: "short" }),
         value: 0,
       }))
 
     docs.forEach((doc) => {
       const date = new Date(doc.created_at)
-      const month = date.getMonth()
-      monthlyData[month].value += 1
+      // Solo contar documentos del año actual
+      if (date.getFullYear() === currentYear) {
+        const month = date.getMonth()
+        monthlyData[month].value += 1
+      }
     })
 
     return monthlyData
@@ -199,7 +232,7 @@ export function DocumentosPageClient() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {isLoading ? <Loader2 className="animate-spin" /> : totalDocumentos}
+                    {isLoading ? <Loader2 className="animate-spin" /> : totalDocumentos.toLocaleString()}
                   </div>
                   <p className="text-xs text-muted-foreground">Documentos registrados en la base de datos</p>
                 </CardContent>
@@ -212,7 +245,7 @@ export function DocumentosPageClient() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {isLoading ? <Loader2 className="animate-spin" /> : currentMonthCount}
+                    {isLoading ? <Loader2 className="animate-spin" /> : currentMonthCount.toLocaleString()}
                   </div>
                   <p className="text-xs text-muted-foreground">Documentos añadidos en el mes actual</p>
                 </CardContent>
@@ -251,8 +284,10 @@ export function DocumentosPageClient() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Documentos por Mes</CardTitle>
-                <CardDescription>Distribución mensual de documentos añadidos al sistema</CardDescription>
+                <CardTitle>Documentos por Mes ({new Date().getFullYear()})</CardTitle>
+                <CardDescription>
+                  Distribución mensual de documentos añadidos al sistema en el año actual
+                </CardDescription>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
@@ -272,7 +307,7 @@ export function DocumentosPageClient() {
         <TabsContent value="table">
           <Card>
             <CardHeader>
-              <CardTitle>Todos los Documentos</CardTitle>
+              <CardTitle>Todos los Documentos ({totalDocumentos.toLocaleString()})</CardTitle>
               <CardDescription>Lista completa de documentos almacenados en el sistema</CardDescription>
             </CardHeader>
             <CardContent>

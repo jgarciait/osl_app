@@ -22,13 +22,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useGroupPermissions } from "@/hooks/use-group-permissions"
 
-interface Tema {
-  id: number
-  nombre: string
-  abreviatura: string | null
-}
-
-export function TemasTable({ temas = [] }: { temas: Tema[] }) {
+export function TemasTable({ temas = [] }) {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
@@ -36,45 +30,16 @@ export function TemasTable({ temas = [] }: { temas: Tema[] }) {
   const canManageTemas = hasPermission("topics", "manage")
 
   const [isDeleting, setIsDeleting] = useState(false)
-  const [temaToDelete, setTemaToDelete] = useState<Tema | null>(null)
+  const [temaToDelete, setTemaToDelete] = useState(null)
   const [searchValue, setSearchValue] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(5)
-  const [localTemas, setLocalTemas] = useState<Tema[]>(temas)
-
-  // Update localTemas when props change
-  useEffect(() => {
-    setLocalTemas(temas)
-  }, [temas])
-
-  // Listen for tema updates and creation
-  useEffect(() => {
-    const handleTemaUpdated = (event: CustomEvent<Tema>) => {
-      const updatedTema = event.detail
-      setLocalTemas((prevTemas) =>
-        prevTemas.map((tema) => (tema.id === updatedTema.id ? { ...tema, ...updatedTema } : tema))
-      )
-    }
-
-    const handleTemaCreated = (event: CustomEvent<Tema>) => {
-      const newTema = event.detail
-      setLocalTemas((prevTemas) => [...prevTemas, newTema])
-    }
-
-    window.addEventListener("tema-updated", handleTemaUpdated as EventListener)
-    window.addEventListener("tema-created", handleTemaCreated as EventListener)
-
-    return () => {
-      window.removeEventListener("tema-updated", handleTemaUpdated as EventListener)
-      window.removeEventListener("tema-created", handleTemaCreated as EventListener)
-    }
-  }, [])
 
   // Filtrar temas basados en la búsqueda
-  const filteredTemas = localTemas.filter(
+  const filteredTemas = temas.filter(
     (tema) =>
       tema.nombre.toLowerCase().includes(searchValue.toLowerCase()) ||
-      (tema.abreviatura && tema.abreviatura.toLowerCase().includes(searchValue.toLowerCase())),
+      (tema.abreviatura && tema.abreviatura.toLowerCase().includes(searchValue.toLowerCase())), // Cambiado de descripcion a abreviatura
   )
 
   // Calcular el número total de páginas
@@ -88,7 +53,7 @@ export function TemasTable({ temas = [] }: { temas: Tema[] }) {
     setCurrentPage(1)
   }, [searchValue, pageSize])
 
-  const handleEdit = (tema: Tema) => {
+  const handleEdit = (tema) => {
     // Dispatch an event to update the form
     window.dispatchEvent(new CustomEvent("edit-tema", { detail: tema }))
   }

@@ -14,19 +14,13 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card"
 import { Loader2 } from "lucide-react"
 
-interface Tema {
-  id: number | null
-  nombre: string
-  abreviatura: string
-}
-
 export function TemaForm() {
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientClient()
 
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [formData, setFormData] = useState<Tema>({
+  const [formData, setFormData] = useState({
     id: null,
     nombre: "",
     abreviatura: "",
@@ -34,7 +28,7 @@ export function TemaForm() {
 
   useEffect(() => {
     // Listen for edit events
-    const handleEditTema = (event: CustomEvent<Tema>) => {
+    const handleEditTema = (event) => {
       const tema = event.detail
       setFormData({
         id: tema.id,
@@ -43,19 +37,19 @@ export function TemaForm() {
       })
     }
 
-    window.addEventListener("edit-tema", handleEditTema as EventListener)
+    window.addEventListener("edit-tema", handleEditTema)
 
     return () => {
-      window.removeEventListener("edit-tema", handleEditTema as EventListener)
+      window.removeEventListener("edit-tema", handleEditTema)
     }
   }, [])
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setIsSubmitting(true)
 
@@ -76,9 +70,6 @@ export function TemaForm() {
           title: "Tema actualizado",
           description: "El tema ha sido actualizado exitosamente",
         })
-
-        // Dispatch event for table update
-        window.dispatchEvent(new CustomEvent("tema-updated", { detail: formData }))
       } else {
         // Create new tema
         const { error } = await supabase.from("temas").insert({
@@ -92,9 +83,6 @@ export function TemaForm() {
           title: "Tema creado",
           description: "El tema ha sido creado exitosamente",
         })
-
-        // Dispatch event for table update
-        window.dispatchEvent(new CustomEvent("tema-created", { detail: formData }))
       }
 
       // Reset form
@@ -105,7 +93,7 @@ export function TemaForm() {
       })
 
       router.refresh()
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error saving tema:", error)
       toast({
         variant: "destructive",
