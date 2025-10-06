@@ -46,7 +46,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Función para eliminar etiquetas HTML del texto
-const stripHtml = (html) => {
+const stripHtml = (html: string | null | undefined) => {
   if (!html) return ""
 
   // Primero reemplazamos <br> y <p> con saltos de línea para preservar el formato
@@ -74,7 +74,7 @@ const stripHtml = (html) => {
 }
 
 // Función para generar el PDF
-export const generateExpresionPDF = async (expresion, documentos = [], comites = []) => {
+export const generateExpresionPDF = async (expresion: any, documentos: any[] = [], comites: any[] = []) => {
   try {
     // Crear cliente de Supabase
     const supabase = createClient(
@@ -104,10 +104,10 @@ export const generateExpresionPDF = async (expresion, documentos = [], comites =
     const headerHeight = 15 // Altura reservada para el encabezado en páginas adicionales
 
     // Variable para almacenar la imagen del logo en base64
-    let logoBase64 = null
+    let logoBase64: string | null = null
 
     // Función para añadir el logo
-    const addLogo = async (y) => {
+    const addLogo = async (y: number) => {
       if (!logoData) return y
 
       try {
@@ -116,9 +116,9 @@ export const generateExpresionPDF = async (expresion, documentos = [], comites =
           const reader = new FileReader()
           reader.readAsDataURL(logoData)
 
-          await new Promise((resolve) => {
+          await new Promise<void>((resolve) => {
             reader.onloadend = () => {
-              logoBase64 = reader.result
+              logoBase64 = reader.result as string
               resolve()
             }
           })
@@ -155,7 +155,7 @@ export const generateExpresionPDF = async (expresion, documentos = [], comites =
     }
 
     // Función para verificar si hay suficiente espacio en la página
-    const checkPageBreak = async (currentY, neededSpace) => {
+    const checkPageBreak = async (currentY: number, neededSpace: number) => {
       if (currentY + neededSpace > pageHeight - footerHeight) {
         addFooter() // Añadir pie de página a la página actual
         doc.addPage() // Añadir nueva página
@@ -321,7 +321,7 @@ const usersCache = {
 const CACHE_DURATION = 60000 // 1 minuto
 
 // Función de utilidad para reintentos con retroceso exponencial
-async function fetchWithRetry(fetchFn, maxRetries = 3, initialDelay = 1000) {
+async function fetchWithRetry(fetchFn: () => Promise<any>, maxRetries = 3, initialDelay = 1000) {
   let retries = 0
   let delay = initialDelay
 
@@ -338,7 +338,7 @@ async function fetchWithRetry(fetchFn, maxRetries = 3, initialDelay = 1000) {
 
       // Verificar si es un error de "Too Many Requests"
       const isTooManyRequests =
-        (error.message && error.message.includes("Too Many R")) ||
+        (error instanceof Error && error.message.includes("Too Many R")) ||
         (error instanceof SyntaxError && error.message.includes("Unexpected token"))
 
       // Si es un error de limitación de tasa, esperar más tiempo
@@ -386,20 +386,20 @@ export function ExpresionesTable({
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>(defaultFilters)
   const [rowSelection, setRowSelection] = useState({})
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [expressionToDelete, setExpressionToDelete] = useState(null)
+  const [expressionToDelete, setExpressionToDelete] = useState<any>(null)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; data: any } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false)
-  const [expressionToAssign, setExpressionToAssign] = useState(null)
-  const [users, setUsers] = useState([])
-  const [selectedUser, setSelectedUser] = useState(null)
+  const [expressionToAssign, setExpressionToAssign] = useState<any>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [selectedUser, setSelectedUser] = useState<string | null>(null)
   const [isAssigning, setIsAssigning] = useState(false)
   const [expresionesData, setExpresiones] = useState(expresiones)
   const [assignedUsers, setAssignedUsers] = useState([])
-  const [isColorDialogOpen, setIsColorDialogOpen] = useState(null)
-  const [expressionToChangeColor, setExpressionToChangeColor] = useState(null)
+  const [isColorDialogOpen, setIsColorDialogOpen] = useState<boolean>(false)
+  const [expressionToChangeColor, setExpressionToChangeColor] = useState<any>(null)
   const [selectedColor, setSelectedColor] = useState("")
-  const [currentUser, setCurrentUser] = useState(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [isFilteringByCurrentUser, setIsFilteringByCurrentUser] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
@@ -410,7 +410,7 @@ export function ExpresionesTable({
   const isDataFetched = useRef(false)
 
   // Añadir refs para las suscripciones
-  const realtimeSubscriptions = useRef([])
+  const realtimeSubscriptions = useRef<any[]>([])
 
   // Función para limpiar suscripciones
   const cleanupRealtimeSubscriptions = () => {
@@ -435,7 +435,7 @@ export function ExpresionesTable({
             schema: "public",
             table: "documento_etiquetas",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en documento_etiquetas:", payload)
             // Si estamos viendo documentos de una expresión específica,
             // podríamos actualizar las etiquetas aquí
@@ -453,7 +453,7 @@ export function ExpresionesTable({
             schema: "public",
             table: "etiquetas",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en etiquetas:", payload)
             // Actualizar las etiquetas si cambian sus nombres o colores
           },
@@ -470,7 +470,7 @@ export function ExpresionesTable({
             schema: "public",
             table: "clasificaciones",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en clasificaciones:", payload)
             // Actualizar las clasificaciones si cambian
           },
@@ -487,7 +487,7 @@ export function ExpresionesTable({
             schema: "public",
             table: "comites",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en comites:", payload)
             // Actualizar los comités si cambian
           },
@@ -639,7 +639,7 @@ export function ExpresionesTable({
           if (!assignedTo) return <span className="text-gray-400 text-xs">Sin asignar</span>
 
           // Generar un color único basado en el nombre del usuario o usar el color guardado
-          const colorHash = assignedTo.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360
+          const colorHash = assignedTo.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) % 360
           const userColor = row.original.assigned_color || `hsl(${colorHash}, 70%, 90%)`
           const textColor = row.original.assigned_text_color || `hsl(${colorHash}, 70%, 30%)`
           const borderColor = row.original.assigned_border_color || `hsl(${colorHash}, 70%, 80%)`
@@ -679,8 +679,8 @@ export function ExpresionesTable({
         accessorFn: (row) => row.document_tags || [],
         header: "Etiquetas",
         cell: ({ row }) => {
-          const tagNames = row.original.document_tag_names || []
-          const tagIds = row.original.document_tags || []
+          const tagNames: string[] = row.original.document_tag_names || []
+          const tagIds: string[] = row.original.document_tags || []
           
           if (tagNames.length === 0) {
             return <span className="text-gray-400 text-xs">-</span>
@@ -716,13 +716,13 @@ export function ExpresionesTable({
           if (!filterValue || filterValue.length === 0) return true
 
           // Obtener las etiquetas de los documentos de esta expresión
-          const rowTags = row.getValue(id)
+          const rowTags = row.getValue(id) as string[]
 
           // Si no hay etiquetas, devolver false
           if (!rowTags || rowTags.length === 0) return false
 
           // Comprobar si alguna de las etiquetas coincide con los valores de filtro
-          return filterValue.some((filter) => rowTags.includes(filter))
+          return filterValue.some((filter: string) => rowTags.includes(filter))
         },
         enableSorting: false,
       },
@@ -850,7 +850,7 @@ export function ExpresionesTable({
               console.error("Error al obtener relaciones con comités:", relacionesError)
             } else if (relacionesData && relacionesData.length > 0) {
               // Luego obtenemos los detalles de los comités
-              const comiteIds = relacionesData.map((rel) => rel.comite_id)
+              const comiteIds = relacionesData.map((rel: any) => rel.comite_id)
 
               const { data: comitesData, error: comitesError } = await supabase
                 .from("comites")
@@ -1160,13 +1160,13 @@ export function ExpresionesTable({
   ]
 
   const handleRowClick = useCallback(
-    (row) => {
+    (row: any) => {
       router.push(`/dashboard/expresiones/${row.id}/editar`)
     },
     [router],
   )
 
-  const handleRowRightClick = useCallback((e, row) => {
+  const handleRowRightClick = useCallback((e: any, row: any) => {
     e.preventDefault()
     setContextMenu({ x: e.clientX, y: e.clientY, data: row })
   }, [])
@@ -1195,7 +1195,7 @@ export function ExpresionesTable({
       // Si selectedUser es "none", establecer assigned_to a null
       const assignedTo = selectedUser === "none" ? null : selectedUser
 
-      let updateData = {
+      let updateData: any = {
         assigned_to: assignedTo,
         updated_at: new Date().toISOString(), // Asegurar que se actualiza el timestamp
       }
@@ -1284,14 +1284,14 @@ export function ExpresionesTable({
       toast({
         variant: "destructive",
         title: "Error al asignar",
-        description: error.message || "Ocurrió un error al asignar la expresión",
+        description: (error as any).message || "Ocurrió un error al asignar la expresión",
       })
     } finally {
       setIsAssigning(false)
     }
   }
 
-  const handleColorChange = (expression) => {
+  const handleColorChange = (expression: any) => {
     setExpressionToChangeColor(expression)
     setSelectedColor(expression.assigned_color || "")
     setIsColorDialogOpen(true)
@@ -1354,7 +1354,7 @@ export function ExpresionesTable({
       toast({
         variant: "destructive",
         title: "Error al actualizar color",
-        description: error.message || "Ocurrió un error al actualizar el color",
+        description: (error as any).message || "Ocurrió un error al actualizar el color",
       })
     }
   }
@@ -1453,7 +1453,7 @@ export function ExpresionesTable({
           .delete()
           .in(
             "documento_id",
-            documentos.map((doc) => doc.id),
+            documentos.map((doc: any) => doc.id),
           )
 
         if (tagsError) {
@@ -1543,7 +1543,7 @@ export function ExpresionesTable({
       toast({
         variant: "destructive",
         title: "Error al eliminar",
-        description: error.message || "Ocurrió un error al eliminar la expresión",
+        description: (error as any).message || "Ocurrió un error al eliminar la expresión",
       })
     } finally {
       setIsDeleting(false)
@@ -1588,7 +1588,7 @@ export function ExpresionesTable({
       if (error) throw error
 
       // Transformar los datos para el formato del filtro
-      const options = data.map((tag) => ({
+      const options = data.map((tag: any) => ({
         label: tag.nombre,
         value: tag.id,
         color: tag.color,
@@ -1673,7 +1673,7 @@ export function ExpresionesTable({
           <div className="grid gap-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="user">Seleccione un usuario</Label>
-              <Select value={selectedUser} onValueChange={setSelectedUser}>
+              <Select value={selectedUser ?? undefined} onValueChange={setSelectedUser}>
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccionar usuario" />
                 </SelectTrigger>
@@ -1745,13 +1745,13 @@ export function ExpresionesTable({
                   style={{
                     backgroundColor:
                       selectedColor ||
-                      `hsl(${expressionToChangeColor?.assigned_to_name?.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360 || 0}, 70%, 90%)`,
+                      `hsl(${expressionToChangeColor?.assigned_to_name?.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) % 360 || 0}, 70%, 90%)`,
                     color: selectedColor
                       ? `hsl(${selectedColor.match(/\d+/)?.[0] || 0}, 70%, 30%)`
-                      : `hsl(${expressionToChangeColor?.assigned_to_name?.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360 || 0}, 70%, 30%)`,
+                      : `hsl(${expressionToChangeColor?.assigned_to_name?.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) % 360 || 0}, 70%, 30%)`,
                     border: selectedColor
                       ? `1px solid hsl(${selectedColor.match(/\d+/)?.[0] || 0}, 70%, 80%)`
-                      : `1px solid hsl(${expressionToChangeColor?.assigned_to_name?.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0) % 360 || 0}, 70%, 80%)`,
+                      : `1px solid hsl(${expressionToChangeColor?.assigned_to_name?.split("").reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) % 360 || 0}, 70%, 80%)`,
                   }}
                 >
                   {expressionToChangeColor?.assigned_to_name || "Usuario"}

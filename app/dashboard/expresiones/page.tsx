@@ -9,20 +9,20 @@ import { AvailableNumbersDialog } from "@/components/available-numbers-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function ExpresionesPage() {
-  const [expresiones, setExpresiones] = useState([])
-  const [years, setYears] = useState([])
+  const [expresiones, setExpresiones] = useState<any[]>([])
+  const [years, setYears] = useState<number[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [tagMap, setTagMap] = useState({})
+  const [tagMap, setTagMap] = useState<Record<string, string>>({})
   const supabase = createClientClient()
   const { toast } = useToast()
   const router = useRouter()
   const [isAvailableNumbersDialogOpen, setIsAvailableNumbersDialogOpen] = useState(false)
   const [globalSearchTerm, setGlobalSearchTerm] = useState("")
-  const [globalSearchResults, setGlobalSearchResults] = useState({ active: [], archived: [] })
+  const [globalSearchResults, setGlobalSearchResults] = useState<{ active: any[]; archived: any[] }>({ active: [], archived: [] })
   const [activeTab, setActiveTab] = useState("active")
 
   // Añadir refs para las suscripciones
-  const subscriptions = useRef([])
+  const subscriptions = useRef<any[]>([])
 
   // Función para limpiar suscripciones
   const cleanupSubscriptions = () => {
@@ -32,7 +32,7 @@ export default function ExpresionesPage() {
 
   // Move setupRealtimeSubscriptions outside useEffect and make it a useCallback
   const setupRealtimeSubscriptions = useCallback(
-    (userMap, temasMap, expresionTemasMap) => {
+    (userMap: any, temasMap: any, expresionTemasMap: any) => {
       // Limpiar suscripciones existentes antes de crear nuevas
       cleanupSubscriptions()
 
@@ -46,7 +46,7 @@ export default function ExpresionesPage() {
             schema: "public",
             table: "expresiones",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en expresiones:", payload)
 
             if (payload.eventType === "INSERT") {
@@ -118,7 +118,7 @@ export default function ExpresionesPage() {
             schema: "public",
             table: "expresion_comites",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en expresion_comites:", payload)
             // Aquí podrías implementar lógica específica para actualizar las relaciones
             // entre expresiones y comités si es necesario
@@ -136,7 +136,7 @@ export default function ExpresionesPage() {
             schema: "public",
             table: "expresion_clasificaciones",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en expresion_clasificaciones:", payload)
             // Aquí podrías implementar lógica específica para actualizar las relaciones
             // entre expresiones y clasificaciones si es necesario
@@ -154,7 +154,7 @@ export default function ExpresionesPage() {
             schema: "public",
             table: "documentos",
           },
-          (payload) => {
+          (payload: any) => {
             console.log("Cambio en documentos:", payload)
             // Aquí podrías implementar lógica específica para actualizar los documentos
             // si es necesario en esta vista
@@ -192,8 +192,8 @@ export default function ExpresionesPage() {
         }
 
         // Crear un mapa de ID a nombre de etiqueta
-        const etiquetasMap = {}
-        etiquetas.forEach((etiqueta) => {
+        const etiquetasMap: Record<string, string> = {}
+        etiquetas.forEach((etiqueta: any) => {
           etiquetasMap[etiqueta.id] = etiqueta.nombre
         })
 
@@ -208,7 +208,7 @@ export default function ExpresionesPage() {
 
         // Crear un mapa de IDs de usuario a nombres completos
         const userMap = new Map()
-        profiles?.data?.forEach((profile) => {
+        profiles?.data?.forEach((profile: any) => {
           userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
         })
 
@@ -238,7 +238,7 @@ export default function ExpresionesPage() {
         // Crear un mapa de expresión a temas
         const expresionTemasMap = new Map()
         if (expresionTemas) {
-          expresionTemas.forEach((rel) => {
+          expresionTemas.forEach((rel: any) => {
             if (!expresionTemasMap.has(rel.expresion_id)) {
               expresionTemasMap.set(rel.expresion_id, [])
             }
@@ -248,12 +248,12 @@ export default function ExpresionesPage() {
 
         // Crear un mapa de IDs de tema a nombres
         const temasMap = new Map()
-        temas?.data?.forEach((tema) => {
+        temas?.data?.forEach((tema: any) => {
           temasMap.set(tema.id, tema.nombre)
         })
 
         // Procesar los datos para incluir el nombre del tema y el nombre del usuario asignado
-        let processedData = data.map((expresion) => {
+        let processedData = data.map((expresion: any) => {
           // Primero intentamos obtener el tema de la relación muchos a muchos
           let tema_nombre = "Sin asignar"
 
@@ -294,7 +294,7 @@ export default function ExpresionesPage() {
           setExpresiones(processedData)
 
           // Obtener años únicos para el filtro
-          const uniqueYears = data && data.length > 0 ? [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a) : []
+          const uniqueYears = data && data.length > 0 ? [...new Set<number>(data.map((item: any) => item.ano))].sort((a, b) => b - a) : []
           setYears(uniqueYears)
 
           // Configurar suscripciones en tiempo real
@@ -340,9 +340,9 @@ export default function ExpresionesPage() {
 
     // Filtrar expresiones activas que coincidan con la búsqueda
     const activeResults = expresiones
-      .filter((exp) => !exp.archivado)
+      .filter((exp: any) => !exp.archivado)
       .filter(
-        (exp) =>
+        (exp: any) =>
           exp.numero?.toString().toLowerCase().includes(searchTermLower) ||
           exp.nombre?.toLowerCase().includes(searchTermLower) ||
           exp.email?.toLowerCase().includes(searchTermLower) ||
@@ -351,9 +351,9 @@ export default function ExpresionesPage() {
 
     // Filtrar expresiones archivadas que coincidan con la búsqueda
     const archivedResults = expresiones
-      .filter((exp) => exp.archivado)
+      .filter((exp: any) => exp.archivado)
       .filter(
-        (exp) =>
+        (exp: any) =>
           exp.numero?.toString().toLowerCase().includes(searchTermLower) ||
           exp.nombre?.toLowerCase().includes(searchTermLower) ||
           exp.email?.toLowerCase().includes(searchTermLower) ||
@@ -403,7 +403,7 @@ export default function ExpresionesPage() {
 
         <TabsContent value="active" className="mt-6">
           <ExpresionesTable
-            expresiones={globalSearchTerm ? globalSearchResults.active : expresiones.filter((exp) => !exp.archivado)}
+            expresiones={globalSearchTerm ? globalSearchResults.active : expresiones.filter((exp: any) => !exp.archivado)}
             years={years}
             tagMap={tagMap}
             hideStatusFilter={true}
@@ -412,7 +412,7 @@ export default function ExpresionesPage() {
 
         <TabsContent value="archived" className="mt-6">
           <ExpresionesTable
-            expresiones={globalSearchTerm ? globalSearchResults.archived : expresiones.filter((exp) => exp.archivado)}
+            expresiones={globalSearchTerm ? globalSearchResults.archived : expresiones.filter((exp: any) => exp.archivado)}
             years={years}
             tagMap={tagMap}
             hideStatusFilter={true}
