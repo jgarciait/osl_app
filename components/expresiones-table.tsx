@@ -677,6 +677,40 @@ export function ExpresionesTable({
       {
         id: "document_tags",
         accessorFn: (row) => row.document_tags || [],
+        header: "Etiquetas",
+        cell: ({ row }) => {
+          const tagNames = row.original.document_tag_names || []
+          const tagIds = row.original.document_tags || []
+          
+          if (tagNames.length === 0) {
+            return <span className="text-gray-400 text-xs">-</span>
+          }
+
+          return (
+            <div className="flex flex-wrap gap-1">
+              {tagNames.slice(0, 3).map((tagName, index) => {
+                const tagId = tagIds[index]
+                // Get color from tagMap using tagId if available
+                const tagColor = tagId && tagMap[tagId] ? "#6b7280" : "#6b7280"
+                
+                return (
+                  <span
+                    key={`${tagId}-${index}`}
+                    className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800"
+                    title={tagName}
+                  >
+                    {tagName}
+                  </span>
+                )
+              })}
+              {tagNames.length > 3 && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-600">
+                  +{tagNames.length - 3}
+                </span>
+              )}
+            </div>
+          )
+        },
         filterFn: (row, id, filterValue) => {
           // Si no hay valores de filtro, devolver true
           if (!filterValue || filterValue.length === 0) return true
@@ -691,7 +725,6 @@ export function ExpresionesTable({
           return filterValue.some((filter) => rowTags.includes(filter))
         },
         enableSorting: false,
-        enableHiding: true,
       },
       {
         id: "actions",
@@ -974,6 +1007,36 @@ export function ExpresionesTable({
     }
   }
 
+  // Define fetchUsers first before using it in useEffect
+  const fetchUsers = useCallback(async () => {
+    try {
+      // Verificar si tenemos datos en caché y si son recientes
+      const now = Date.now()
+      if (usersCache.data && now - usersCache.timestamp < CACHE_DURATION) {
+        setUsers(usersCache.data)
+        return
+      }
+
+      // Usar la función cachedQuery para obtener los usuarios
+      const { data, error } = await supabase.from("profiles").select("id, nombre, apellido, email")
+
+      if (error) throw error
+
+      // Guardar en caché
+      usersCache.data = data || []
+      usersCache.timestamp = now
+
+      setUsers(data || [])
+    } catch (error) {
+      console.error("Error fetching users:", error)
+      toast({
+        variant: "destructive",
+        title: "Error al cargar usuarios",
+        description: "No se pudieron cargar los usuarios disponibles",
+      })
+    }
+  }, [supabase, toast])
+
   // Obtener el usuario actual al cargar el componente
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -1010,6 +1073,9 @@ export function ExpresionesTable({
           })
         }
 
+        // También cargar todos los usuarios para el filtro
+        await fetchUsers()
+
         // Marcar que los datos ya se han cargado
         isDataFetched.current = true
       } catch (error) {
@@ -1025,7 +1091,7 @@ export function ExpresionesTable({
     }
 
     fetchCurrentUser()
-  }, [supabase, toast])
+  }, [supabase, toast, fetchUsers])
 
   const table = useReactTable({
     data: expresionesData,
@@ -1119,35 +1185,6 @@ export function ExpresionesTable({
       setContextMenu(null)
     }
   }, [contextMenu])
-
-  const fetchUsers = async () => {
-    try {
-      // Verificar si tenemos datos en caché y si son recientes
-      const now = Date.now()
-      if (usersCache.data && now - usersCache.timestamp < CACHE_DURATION) {
-        setUsers(usersCache.data)
-        return
-      }
-
-      // Usar la función cachedQuery para obtener los usuarios
-      const { data, error } = await supabase.from("profiles").select("id, nombre, apellido, email")
-
-      if (error) throw error
-
-      // Guardar en caché
-      usersCache.data = data || []
-      usersCache.timestamp = now
-
-      setUsers(data || [])
-    } catch (error) {
-      console.error("Error fetching users:", error)
-      toast({
-        variant: "destructive",
-        title: "Error al cargar usuarios",
-        description: "No se pudieron cargar los usuarios disponibles",
-      })
-    }
-  }
 
   const handleAssignUser = async () => {
     if (!expressionToAssign) return
@@ -1348,7 +1385,7 @@ export function ExpresionesTable({
     if (isAssignDialogOpen) {
       fetchUsers()
     }
-  }, [isAssignDialogOpen])
+  }, [isAssignDialogOpen, fetchUsers])
 
   // Modificar la función confirmDelete para verificar y actualizar la secuencia si es necesario
   const confirmDelete = async () => {

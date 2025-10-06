@@ -212,30 +212,18 @@ export default function ExpresionesPage() {
           userMap.set(profile.id, `${profile.nombre} ${profile.apellido}`)
         })
 
-        // Obtener las expresiones con su campo tema
-        const { data, error } = await supabase
-          .from("expresiones")
-          .select(`
-            id, 
-            nombre, 
-            email, 
-            numero, 
-            ano, 
-            mes, 
-            archivado, 
-            created_at,
-            assigned_to,
-            assigned_color,
-            assigned_text_color,
-            assigned_border_color,
-            tema
-          `)
-          .order("created_at", { ascending: false })
+        // Obtener las expresiones con sus etiquetas de documentos usando RPC optimizado
+        const { data, error } = await supabase.rpc("get_all_expresiones_with_tags")
 
         if (error) {
           console.error("Error al obtener expresiones:", error)
+          console.error("Error details:", JSON.stringify(error, null, 2))
+          console.error("Error message:", error.message)
+          console.error("Error code:", error.code)
           throw error
         }
+
+        console.log("Expresiones data loaded:", data?.length || 0, "records")
 
         // Obtener las relaciones entre expresiones y temas
         const { data: expresionTemas, error: expresionTemasError } = await supabase
@@ -283,92 +271,30 @@ export default function ExpresionesPage() {
           // Obtener el nombre del usuario asignado si existe
           const assigned_to_name = expresion.assigned_to ? userMap.get(expresion.assigned_to) || null : null
 
+          // Process tags from RPC result (already in JSONB format)
+          const document_tags = Array.isArray(expresion.document_tags) 
+            ? expresion.document_tags 
+            : []
+          const document_tag_names = Array.isArray(expresion.document_tag_names) 
+            ? expresion.document_tag_names 
+            : []
+
           return {
             ...expresion,
             tema_nombre,
             assigned_to_name,
+            document_tags,
+            document_tag_names,
           }
         })
 
-        // Después de procesar los datos de expresiones, cargar información de etiquetas
-        if (data && data.length > 0) {
-          try {
-            // Obtener IDs de todas las expresiones
-            const expresionIds = data.map((exp) => exp.id)
-
-            // Primero obtener todos los documentos de estas expresiones
-            const { data: documentos, error: documentosError } = await supabase
-              .from("documentos")
-              .select("id, expresion_id")
-              .in("expresion_id", expresionIds)
-
-            if (documentosError) {
-              console.error("Error al obtener documentos:", documentosError.message || documentosError)
-              // Continue without tags instead of throwing
-            } else if (documentos && documentos.length > 0) {
-              const documentoIds = documentos.map((doc) => doc.id)
-
-              // Ahora obtener las etiquetas de esos documentos
-              const { data: documentoEtiquetas, error: etiquetasError } = await supabase
-                .from("documento_etiquetas")
-                .select("documento_id, etiqueta_id")
-                .in("documento_id", documentoIds)
-
-              if (etiquetasError) {
-                console.error("Error al obtener etiquetas de documentos:", etiquetasError.message || etiquetasError)
-                // Continue without tags instead of throwing
-              } else if (documentoEtiquetas) {
-                // Crear un mapa de documento a expresión
-                const docToExpresionMap = new Map()
-                documentos.forEach((doc) => {
-                  docToExpresionMap.set(doc.id, doc.expresion_id)
-                })
-
-                // Crear un mapa de expresión a etiquetas
-                const expresionEtiquetasMap = new Map()
-
-                // Procesar los datos para agrupar etiquetas por expresión
-                documentoEtiquetas.forEach((docTag) => {
-                  const expresionId = docToExpresionMap.get(docTag.documento_id)
-                  if (expresionId) {
-                    if (!expresionEtiquetasMap.has(expresionId)) {
-                      expresionEtiquetasMap.set(expresionId, new Set())
-                    }
-                    expresionEtiquetasMap.get(expresionId).add(docTag.etiqueta_id)
-                  }
-                })
-
-                // Actualizar los datos procesados con la información de etiquetas
-                processedData = processedData.map((exp) => {
-                  const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
-
-                  // Convertir IDs a nombres de etiquetas
-                  const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
-
-                  return {
-                    ...exp,
-                    document_tags: tagIds,
-                    document_tag_names: tagNames,
-                  }
-                })
-              }
-            }
-          } catch (tagError) {
-            console.error("Error al procesar etiquetas de documentos:", tagError)
-            // Continue without tags - don't throw
-            processedData = processedData.map((exp) => ({
-              ...exp,
-              document_tags: [],
-              document_tag_names: [],
-            }))
-          }
-        }
+        // Tags are now loaded directly from the RPC function, no need for additional queries
 
         if (isMounted) {
           setExpresiones(processedData)
 
           // Obtener años únicos para el filtro
-          const uniqueYears = [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a)
+          const uniqueYears = data && data.length > 0 ? [...new Set(data.map((item) => item.ano))].sort((a, b) => b - a) : []
           setYears(uniqueYears)
 
           // Configurar suscripciones en tiempo real
