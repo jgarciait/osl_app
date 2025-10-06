@@ -292,56 +292,76 @@ export default function ExpresionesPage() {
 
         // Después de procesar los datos de expresiones, cargar información de etiquetas
         if (data && data.length > 0) {
-          // Obtener IDs de todas las expresiones
-          const expresionIds = data.map((exp) => exp.id)
+          try {
+            // Obtener IDs de todas las expresiones
+            const expresionIds = data.map((exp) => exp.id)
 
-          // Consultar documentos y sus etiquetas para estas expresiones
-          const { data: documentosConEtiquetas, error: documentosError } = await supabase
-            .from("documentos")
-            .select(`
-              id,
-              expresion_id,
-              documento_etiquetas(etiqueta_id)
-            `)
-            .in("expresion_id", expresionIds)
+            // Primero obtener todos los documentos de estas expresiones
+            const { data: documentos, error: documentosError } = await supabase
+              .from("documentos")
+              .select("id, expresion_id")
+              .in("expresion_id", expresionIds)
 
-          if (documentosError) {
-            console.error("Error al obtener documentos con etiquetas:", documentosError)
-            throw documentosError
-          }
+            if (documentosError) {
+              console.error("Error al obtener documentos:", documentosError.message || documentosError)
+              // Continue without tags instead of throwing
+            } else if (documentos && documentos.length > 0) {
+              const documentoIds = documentos.map((doc) => doc.id)
 
-          // Crear un mapa de expresión a etiquetas
-          const expresionEtiquetasMap = new Map()
+              // Ahora obtener las etiquetas de esos documentos
+              const { data: documentoEtiquetas, error: etiquetasError } = await supabase
+                .from("documento_etiquetas")
+                .select("documento_id, etiqueta_id")
+                .in("documento_id", documentoIds)
 
-          // Procesar los datos para agrupar etiquetas por expresión
-          documentosConEtiquetas.forEach((doc) => {
-            if (doc.documento_etiquetas && doc.documento_etiquetas.length > 0) {
-              const tagIds = doc.documento_etiquetas.map((tag) => tag.etiqueta_id)
+              if (etiquetasError) {
+                console.error("Error al obtener etiquetas de documentos:", etiquetasError.message || etiquetasError)
+                // Continue without tags instead of throwing
+              } else if (documentoEtiquetas) {
+                // Crear un mapa de documento a expresión
+                const docToExpresionMap = new Map()
+                documentos.forEach((doc) => {
+                  docToExpresionMap.set(doc.id, doc.expresion_id)
+                })
 
-              if (!expresionEtiquetasMap.has(doc.expresion_id)) {
-                expresionEtiquetasMap.set(doc.expresion_id, new Set())
+                // Crear un mapa de expresión a etiquetas
+                const expresionEtiquetasMap = new Map()
+
+                // Procesar los datos para agrupar etiquetas por expresión
+                documentoEtiquetas.forEach((docTag) => {
+                  const expresionId = docToExpresionMap.get(docTag.documento_id)
+                  if (expresionId) {
+                    if (!expresionEtiquetasMap.has(expresionId)) {
+                      expresionEtiquetasMap.set(expresionId, new Set())
+                    }
+                    expresionEtiquetasMap.get(expresionId).add(docTag.etiqueta_id)
+                  }
+                })
+
+                // Actualizar los datos procesados con la información de etiquetas
+                processedData = processedData.map((exp) => {
+                  const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
+
+                  // Convertir IDs a nombres de etiquetas
+                  const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
+
+                  return {
+                    ...exp,
+                    document_tags: tagIds,
+                    document_tag_names: tagNames,
+                  }
+                })
               }
-
-              // Añadir etiquetas al conjunto para esta expresión
-              tagIds.forEach((tagId) => {
-                expresionEtiquetasMap.get(doc.expresion_id).add(tagId)
-              })
             }
-          })
-
-          // Actualizar los datos procesados con la información de etiquetas
-          processedData = processedData.map((exp) => {
-            const tagIds = expresionEtiquetasMap.has(exp.id) ? Array.from(expresionEtiquetasMap.get(exp.id)) : []
-
-            // Convertir IDs a nombres de etiquetas
-            const tagNames = tagIds.map((id) => etiquetasMap[id] || id)
-
-            return {
+          } catch (tagError) {
+            console.error("Error al procesar etiquetas de documentos:", tagError)
+            // Continue without tags - don't throw
+            processedData = processedData.map((exp) => ({
               ...exp,
-              document_tags: tagIds,
-              document_tag_names: tagNames,
-            }
-          })
+              document_tags: [],
+              document_tag_names: [],
+            }))
+          }
         }
 
         if (isMounted) {
